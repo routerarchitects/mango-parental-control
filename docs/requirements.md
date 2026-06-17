@@ -1,6 +1,6 @@
-# Requirements Specification: {{SERVICE_NAME}}
+# Requirements Specification: mango-parental-control
 
-This document details the functional and non-functional requirements for the **{{SERVICE_NAME}}** microservice.
+This document details the functional and non-functional requirements for the **mango-parental-control** microservice.
 
 ---
 

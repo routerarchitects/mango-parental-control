@@ -6,8 +6,8 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	// Set required environment variables enforced by discovery/logger common packages
-	t.Setenv("SERVICE_NAME", "mango-go-foundation-service")
-	t.Setenv("SERVICE_TYPE", "mango-go-foundation-service")
+	t.Setenv("SERVICE_NAME", "mango-parental-control")
+	t.Setenv("SERVICE_TYPE", "mango-parental-control")
 	t.Setenv("SERVICE_VERSION", "dev")
 	t.Setenv("SYSTEM_URI_PRIVATE", "https://localhost:17010")
 	t.Setenv("SYSTEM_URI_PUBLIC", "https://localhost:16010")

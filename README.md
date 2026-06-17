@@ -52,7 +52,7 @@ To initialize a new repository using this foundation template:
    ```bash
    mkdir <workspace-dir>
    cd <workspace-dir>
-   git clone git@github.com:routerarchitects/mango-go-foundation-service.git
+   git clone git@github.com:routerarchitects/mango-parental-control.git
    git clone git@github.com:routerarchitects/<new-service-name>.git
    ```
 
@@ -60,7 +60,7 @@ To initialize a new repository using this foundation template:
    ```bash
    cd <new-service-name>
    git checkout -b base-service-scaffold
-   cp -rf ../mango-go-foundation-service/!(.git|.idea|.vscode|tmp|bin) .
+   cp -rf ../mango-parental-control/!(.git|.idea|.vscode|tmp|bin) .
    ```
 
 3. **Commit and push the scaffold as the first commit:**
@@ -86,10 +86,10 @@ Once you have initialized the repository (Phase 1), run the following commands t
 
    # 2. Customize all files using the variables:
    find . -type f -not -path '*/.git/*' -exec sed -i \
-       -e "s/{{SERVICE_NAME}}/${NEW_SERVICE_NAME}/g" \
-       -e "s/mango-go-foundation-service/${NEW_SERVICE_NAME}/g" \
-       -e "s/{{PUBLIC_PORT}}/${PUBLIC_PORT}/g" \
-       -e "s/{{PRIVATE_PORT}}/${PRIVATE_PORT}/g" {} +
+       -e "s/mango-parental-control/${NEW_SERVICE_NAME}/g" \
+       -e "s/mango-parental-control/${NEW_SERVICE_NAME}/g" \
+       -e "s/16008/${PUBLIC_PORT}/g" \
+       -e "s/17008/${PRIVATE_PORT}/g" {} +
 
    # 3. Rename the compose environment file:
    mv deployments/docker-compose/docker-compose.env deployments/docker-compose/${NEW_SERVICE_NAME}.env

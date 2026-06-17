@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/routerarchitects/mango-go-foundation-service/internal/config"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/db"
-	apphttp "github.com/routerarchitects/mango-go-foundation-service/internal/http"
+	"github.com/routerarchitects/mango-parental-control/internal/config"
+	"github.com/routerarchitects/mango-parental-control/internal/db"
+	apphttp "github.com/routerarchitects/mango-parental-control/internal/http"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
 	"github.com/routerarchitects/ow-common-mods/servicerpc"

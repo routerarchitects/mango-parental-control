@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/config"
+	"github.com/routerarchitects/mango-parental-control/internal/config"
 	"github.com/routerarchitects/ra-common-mods/apperror"
 )
 

@@ -1,6 +1,6 @@
-# Service Design: {{SERVICE_NAME}}
+# Service Design: mango-parental-control
 
-This document details the architectural layout, database models, and internal logic flows for the **{{SERVICE_NAME}}** microservice.
+This document details the architectural layout, database models, and internal logic flows for the **mango-parental-control** microservice.
 
 ---
 

@@ -1,8 +1,8 @@
 # ==============================================================================
-# Development Makefile for {{SERVICE_NAME}}
+# Development Makefile for mango-parental-control
 # ==============================================================================
 
-APP_NAME = mango-go-foundation-service
+APP_NAME = mango-parental-control
 VERSION ?= v0.1.0
 COMMIT_HASH = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_TIMESTAMP = $(shell date -u +%s)
@@ -15,7 +15,7 @@ LDFLAGS = -X github.com/routerarchitects/ra-common-mods/buildinfo.version=$(VERS
 all: build
 
 build:
-	@echo "Compiling {{SERVICE_NAME}} binary..."
+	@echo "Compiling mango-parental-control binary..."
 	go build -ldflags="-s -w $(LDFLAGS)" -o $(APP_NAME) ./cmd
 
 certs:
@@ -29,7 +29,7 @@ certs:
 	fi
 
 run: certs
-	@echo "Running {{SERVICE_NAME}} locally..."
+	@echo "Running mango-parental-control locally..."
 	@if [ -f configs/local-dev.env ]; then \
 		set -a && . ./configs/local-dev.env && set +a && go run ./cmd; \
 	else \
@@ -70,5 +70,5 @@ docker-run: certs
 	docker run --rm -it \
 		--env-file deployments/docker-compose/$(APP_NAME).env \
 		-v $(PWD)/certs:/app/certs \
-		-p {{PUBLIC_PORT}}:{{PUBLIC_PORT}} -p {{PRIVATE_PORT}}:{{PRIVATE_PORT}} \
+		-p 16008:16008 -p 17008:17008 \
 		$(APP_NAME):latest

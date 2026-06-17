@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/routerarchitects/mango-go-foundation-service/internal/app"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/config"
+	"github.com/routerarchitects/mango-parental-control/internal/app"
+	"github.com/routerarchitects/mango-parental-control/internal/config"
 	"github.com/routerarchitects/ra-common-mods/logger"
 )
 

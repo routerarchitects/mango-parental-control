@@ -5,7 +5,7 @@ FROM golang:1.25.1-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates build-base
 
-WORKDIR /src/mango-go-foundation-service
+WORKDIR /src/mango-parental-control
 
 # Cache dependencies
 COPY go.mod go.sum* ./
@@ -17,7 +17,7 @@ COPY . .
 ARG VERSION
 ARG BUILD_TIMESTAMP
 ARG COMMIT_HASH
-ARG APP_NAME=mango-go-foundation-service
+ARG APP_NAME=mango-parental-control
 
 ENV CGO_ENABLED=0 \
     GOOS=linux \
@@ -47,7 +47,7 @@ RUN apk add --no-cache ca-certificates bash curl
 
 WORKDIR /app
 
-ARG APP_NAME=mango-go-foundation-service
+ARG APP_NAME=mango-parental-control
 ARG VERSION
 ARG BUILD_TIMESTAMP
 ARG COMMIT_HASH
@@ -62,7 +62,7 @@ ENV SERVICE_VERSION="${VERSION}" \
 COPY --from=builder /out/${APP_NAME} /app/${APP_NAME}
 
 # Copy database schema migrations
-COPY --from=builder /src/mango-go-foundation-service/db /app/db
+COPY --from=builder /src/mango-parental-control/db /app/db
 
 # Create non-root user for security execution
 RUN adduser -D -u 65532 appuser
@@ -71,4 +71,4 @@ USER appuser
 # Expose Public Port (16010) and Private/System Port (17010)
 EXPOSE 16010 17010
 
-ENTRYPOINT ["/app/mango-go-foundation-service"]
+ENTRYPOINT ["/app/mango-parental-control"]

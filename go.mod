@@ -1,4 +1,4 @@
-module github.com/routerarchitects/mango-go-foundation-service
+module github.com/routerarchitects/mango-parental-control
 
 go 1.25.1
 

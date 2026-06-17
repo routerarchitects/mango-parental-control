@@ -1,9 +1,9 @@
 openapi: 3.0.0
 info:
-  title: "{{SERVICE_NAME}} API"
+  title: "mango-parental-control API"
   version: "1.0.0"
   description: |
-    REST API definition for {{SERVICE_NAME}} microservice.
+    REST API definition for mango-parental-control microservice.
     
     ### Dual-Port HTTP Architecture
     The microservice operates two isolated HTTP interfaces:

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/config"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/http/middleware"
-	"github.com/routerarchitects/mango-go-foundation-service/internal/http/routes"
+	"github.com/routerarchitects/mango-parental-control/internal/config"
+	"github.com/routerarchitects/mango-parental-control/internal/http/middleware"
+	"github.com/routerarchitects/mango-parental-control/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsystemroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
