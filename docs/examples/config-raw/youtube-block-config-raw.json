@@ -22,9 +22,9 @@
   ["set", "firewall.pc_rule_g001_s004_youtube.target", "REJECT"],
   ["set", "firewall.pc_rule_g001_s004_youtube.start_time", "07:54:00"],
   ["set", "firewall.pc_rule_g001_s004_youtube.stop_time", "13:30:00"],
-  ["set", "firewall.pc_rule_g001_s004_youtube.weekdays", "Mon Tue Wed Thu Fri Sat Sun"],
+  ["set", "firewall.pc_rule_g001_s004_youtube.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
   ["set", "firewall.pc_rule_g001_s004_youtube.utc_time", "1"],
   ["set", "firewall.pc_rule_g001_s004_youtube.enabled", "1"],
-  ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "B4:6A:D4:45:E9:5C"],
-  ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "1A:F3:33:86:97:0A"]
+  ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "1A:F3:33:86:97:0A"],
+  ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "B4:6A:D4:45:E9:5C"]
 ]

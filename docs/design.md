@@ -493,7 +493,7 @@ Config-rendering rules:
 - If a write operation does not change effective generated policy, the successful response body shall not include `config-raw`.
 - If the effective policy is empty after the write, the successful response body shall not include `config-raw`.
 - `target_kind = INTERNET` shall not emit a `target_value` command.
-- `target_kind = APP` shall emit a `target_value` command containing the application identifier.
+- For `target_kind = APP`, the `target_value` specifies the application identifier (such as YOUTUBE) to lookup its target-specific config-raw templates (domain lists, ipsets, and firewall rules) rather than emitting a literal `target_value` option command.
 - Unsupported rule combinations shall be rejected rather than partially rendered.
 
 Example shape:

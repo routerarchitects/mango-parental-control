@@ -9,7 +9,7 @@
   ["set", "firewall.pc_rule_g001_s003_internet.target", "REJECT"],
   ["set", "firewall.pc_rule_g001_s003_internet.start_time", "21:00:00"],
   ["set", "firewall.pc_rule_g001_s003_internet.stop_time", "09:00:00"],
-  ["set", "firewall.pc_rule_g001_s003_internet.weekdays", "Mon Tue Wed Thu Fri Sat Sun"],
-  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "B4:6A:D4:45:E9:5C"],
-  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "1A:F3:33:86:97:0A"]
+  ["set", "firewall.pc_rule_g001_s003_internet.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
+  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "1A:F3:33:86:97:0A"],
+  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "B4:6A:D4:45:E9:5C"]
 ]

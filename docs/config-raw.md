@@ -427,7 +427,7 @@ For one INTERNET rule section, the command order shall be:
  ["set", "firewall.pc_rule_g001_s003_internet.target", "REJECT"],
  ["set", "firewall.pc_rule_g001_s003_internet.start_time", "09:00:00"],
  ["set", "firewall.pc_rule_g001_s003_internet.stop_time", "17:00:00"],
- ["set", "firewall.pc_rule_g001_s003_internet.weekdays", "Mon Tue Wed Thu Fri Sat Sun"],
+ ["set", "firewall.pc_rule_g001_s003_internet.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "1A:F3:33:86:97:0A"],
  ["add_list", "firewall.pc_rule_g001_s003_internet.src_mac", "B4:6A:D4:45:E9:5C"]
  ]
@@ -512,7 +512,11 @@ When shared target-level sections are used, their lifecycle shall be computed ag
  ["set", "firewall.pc_rule_g001_s004_youtube.dest", "up0v0"],
  ["set", "firewall.pc_rule_g001_s004_youtube.ipset", "yt_domains"],
  ["set", "firewall.pc_rule_g001_s004_youtube.target", "REJECT"],
+ ["set", "firewall.pc_rule_g001_s004_youtube.start_time", "07:54:00"],
+ ["set", "firewall.pc_rule_g001_s004_youtube.stop_time", "13:30:00"],
+ ["set", "firewall.pc_rule_g001_s004_youtube.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
  ["set", "firewall.pc_rule_g001_s004_youtube.enabled", "1"],
+ ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "1A:F3:33:86:97:0A"],
  ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "B4:6A:D4:45:E9:5C"]
  ]
 }
@@ -601,7 +605,7 @@ else:
  ["set", "firewall.pc_rule_g003_s003_internet.target", "REJECT"],
  ["set", "firewall.pc_rule_g003_s003_internet.start_time", "21:00:00"],
  ["set", "firewall.pc_rule_g003_s003_internet.stop_time", "09:00:00"],
- ["set", "firewall.pc_rule_g003_s003_internet.weekdays", "Mon Tue Wed Thu Fri Sat Sun"],
+ ["set", "firewall.pc_rule_g003_s003_internet.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
  ["add_list", "firewall.pc_rule_g003_s003_internet.src_mac", "MAC X"],
  ["add_list", "firewall.pc_rule_g003_s003_internet.src_mac", "MAC Y"]
  ]
