@@ -270,16 +270,18 @@ Expected response:
  "group_id": "20000000-0000-0000-0000-000000000001",
  "schedule_id": "30000000-0000-0000-0000-000000000001",
  "config-raw": [
- ["set", "firewall.pc_rule_g001_s001_internet", "rule"],
- ["set", "firewall.pc_rule_g001_s001_internet.name", "PC_Block_g001_s001_Internet"],
- ["set", "firewall.pc_rule_g001_s001_internet.enabled", "1"],
- ["set", "firewall.pc_rule_g001_s001_internet.dest", "up0v0"],
- ["set", "firewall.pc_rule_g001_s001_internet.src", "down1v0"],
- ["set", "firewall.pc_rule_g001_s001_internet.target", "REJECT"],
- ["set", "firewall.pc_rule_g001_s001_internet.start_time", "21:00:00"],
- ["set", "firewall.pc_rule_g001_s001_internet.stop_time", "09:00:00"],
- ["set", "firewall.pc_rule_g001_s001_internet.weekdays", "Mon Tue Wed Thu Fri"],
- ["add_list", "firewall.pc_rule_g001_s001_internet.src_mac", "B4:6A:D4:45:E9:5C"]
+  ["set", "firewall.pc_rule_g001_s001_internet", "rule"],
+  ["set", "firewall.pc_rule_g001_s001_internet.name", "PC_Block_g001_s001_Internet"],
+  ["set", "firewall.pc_rule_g001_s001_internet.enabled", "1"],
+  ["set", "firewall.pc_rule_g001_s001_internet.dest", "up0v0"],
+  ["set", "firewall.pc_rule_g001_s001_internet.family", "any"],
+  ["set", "firewall.pc_rule_g001_s001_internet.proto", "all"],
+  ["set", "firewall.pc_rule_g001_s001_internet.src", "down1v0"],
+  ["set", "firewall.pc_rule_g001_s001_internet.target", "REJECT"],
+  ["set", "firewall.pc_rule_g001_s001_internet.start_time", "21:00:00"],
+  ["set", "firewall.pc_rule_g001_s001_internet.stop_time", "09:00:00"],
+  ["set", "firewall.pc_rule_g001_s001_internet.weekdays", "Mon Tue Wed Thu Fri"],
+  ["add_list", "firewall.pc_rule_g001_s001_internet.src_mac", "B4:6A:D4:45:E9:5C"]
  ]
 }
 ```

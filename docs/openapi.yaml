@@ -5,7 +5,7 @@ info:
   description: Internal API contract for Mango Parental Control Service. The service intentionally standardizes successful create, update, and delete operations on `200 OK`.
 servers:
   - url: "https://{host}:{publicPort}"
-    description: "Public HTTP API Interface"
+    description: "Public HTTPS API Interface"
     variables:
       host:
         default: "localhost"
@@ -14,7 +14,7 @@ servers:
         default: "16008"
         description: "Public API interface port"
   - url: "https://{host}:{privatePort}"
-    description: "Private/Internal HTTP API Interface"
+    description: "Private/Internal HTTPS API Interface"
     variables:
       host:
         default: "localhost"

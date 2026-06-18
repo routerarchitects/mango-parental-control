@@ -15,16 +15,14 @@
   ["set", "firewall.pc_rule_g001_s004_youtube.name", "PC_Block_g001_s004_YouTube"],
   ["set", "firewall.pc_rule_g001_s004_youtube.enabled", "1"],
   ["set", "firewall.pc_rule_g001_s004_youtube.dest", "up0v0"],
-  ["set", "firewall.pc_rule_g001_s004_youtube.family", "ipv4"],
+  ["set", "firewall.pc_rule_g001_s004_youtube.family", "any"],
   ["set", "firewall.pc_rule_g001_s004_youtube.ipset", "yt_domains"],
+  ["set", "firewall.pc_rule_g001_s004_youtube.proto", "all"],
   ["set", "firewall.pc_rule_g001_s004_youtube.src", "down1v0"],
   ["set", "firewall.pc_rule_g001_s004_youtube.target", "REJECT"],
-  ["set", "firewall.pc_rule_g001_s004_youtube.utc_time", "1"],
   ["set", "firewall.pc_rule_g001_s004_youtube.start_time", "07:54:00"],
   ["set", "firewall.pc_rule_g001_s004_youtube.stop_time", "13:30:00"],
   ["set", "firewall.pc_rule_g001_s004_youtube.weekdays", "Sun Mon Tue Wed Thu Fri Sat"],
-  ["add_list", "firewall.pc_rule_g001_s004_youtube.proto", "tcp"],
-  ["add_list", "firewall.pc_rule_g001_s004_youtube.proto", "udp"],
   ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "1A:F3:33:86:97:0A"],
   ["add_list", "firewall.pc_rule_g001_s004_youtube.src_mac", "B4:6A:D4:45:E9:5C"]
 ]
