@@ -4,59 +4,62 @@ info:
   version: 1.0.0
   description: Internal API contract for Mango Parental Control Service. The service intentionally standardizes successful create, update, and delete operations on `200 OK`.
 servers:
-  - url: https://{host}:{publicPort}/api/v1
-    description: Public HTTP API Interface
+  - url: "https://{host}:{publicPort}"
+    description: "Public HTTP API Interface"
     variables:
       host:
-        default: localhost
+        default: "localhost"
+        description: "Hostname/IP of the public service"
       publicPort:
-        default: '16010'
-  - url: https://{host}:{privatePort}/api/v1
-    description: Private/Internal HTTP API Interface
+        default: "16008"
+        description: "Public API interface port"
+  - url: "https://{host}:{privatePort}"
+    description: "Private/Internal HTTP API Interface"
     variables:
       host:
-        default: localhost
+        default: "localhost"
+        description: "Hostname/IP of the private service"
       privatePort:
-        default: '17010'
+        default: "17008"
+        description: "Private management/diagnostics port"
 security:
-  - bearerAuth: []
+  - PublicTokenAuth: []
   - PrivateInternalNameAuth: []
     PrivateApiKeyAuth: []
 paths:
   /livez:
     get:
-      summary: Liveness probe
-      description: Checks if the service is running and healthy. This route is unauthenticated and accessible on both the public and private ports.
+      summary: "Liveness probe"
+      description: "Checks if the service is running and healthy. This route is unauthenticated and accessible on both the public and private ports."
       security: []
       responses:
-        '200':
-          description: Service is healthy and running
-        '500':
-          description: Service is unhealthy
-  /system:
+        "200":
+          description: "Service is healthy and running"
+        "500":
+          description: "Service is unhealthy"
+
+  /api/v1/system:
     get:
-      summary: Retrieve system diagnostics and metrics
-      description: Returns system status info or resource usage based on the requested command.
+      summary: "Retrieve system diagnostics and metrics"
+      description: "Returns system status info or resource usage based on the requested command."
       security:
         - PrivateInternalNameAuth: []
           PrivateApiKeyAuth: []
       parameters:
-        - name: command
-          in: query
+        - name: "command"
+          in: "query"
           required: true
           schema:
-            type: string
-            enum:
-              - info
-              - resources
+            type: "string"
+            enum: ["info", "resources"]
       responses:
-        '200':
-          description: Successful query execution
-        '400':
-          description: Invalid command query
+        "200":
+          description: "Successful query execution"
+        "400":
+          description: "Invalid command query"
     post:
-      summary: Modify log levels or query diagnostics schema
-      description: Dynamically mutate runtime subsystem log levels or fetch subsystem metadata.
+      summary: "Modify log levels or query diagnostics schema"
+      description: "Dynamically mutate runtime subsystem log levels or fetch subsystem metadata."
       security:
         - PrivateInternalNameAuth: []
           PrivateApiKeyAuth: []
@@ -65,176 +68,830 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              type: "object"
               required:
-                - command
+              - "command"
               properties:
                 command:
-                  type: string
-                  enum:
-                    - setloglevel
-                    - getloglevels
-                    - getloglevelnames
-                    - getsubsystemnames
+                  type: "string"
+                  enum: ["setloglevel", "getloglevels", "getloglevelnames", "getsubsystemnames"]
                 subsystems:
-                  type: array
+                  type: "array"
                   items:
-                    type: object
+                    type: "object"
                     required:
-                      - tag
-                      - value
+                    - "tag"
+                    - "value"
                     properties:
                       tag:
-                        type: string
+                        type: "string"
                       value:
-                        type: string
+                        type: "string"
+      responses:
+        "200":
+          description: "Successful action execution"
+        "400":
+          description: "Invalid command or malformed body"
+
+  /api/v1/subscribers/{subscriber_id}/groups:
+    get:
+      summary: List groups
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
       responses:
         '200':
-          description: Successful action execution
-        '400':
-          description: Invalid command or malformed body
-  /subscribers/{subscriber_id}/groups: null
-  get: null
-  summary: Unlink schedule from group
-  parameters:
-    - $ref: '#/components/parameters/SubscriberIdPath'
-    - $ref: '#/components/parameters/GroupIdPath'
-    - $ref: '#/components/parameters/ScheduleIdPath'
-  responses: null
-  '200': null
-  description: Group schedule link removed
-  content: null
-  application/json: null
-  schema: null
-  type: array
-  items: null
-  $ref: '#/components/schemas/ConfigRawResponse'
-  '400':
-    $ref: '#/components/responses/BadRequest'
-  '401':
-    $ref: '#/components/responses/Unauthorized'
-  '500':
-    $ref: '#/components/responses/StorageFailure'
-  post: null
-  requestBody: null
-  required: true
-  '409':
-    $ref: '#/components/responses/Conflict'
-  /subscribers/{subscriber_id}/groups/{group_id}: null
-  '404':
-    $ref: '#/components/responses/NotFound'
-  put: null
-  delete: null
-  /subscribers/{subscriber_id}/groups/{group_id}/devices: null
-  /subscribers/{subscriber_id}/groups/{group_id}/devices/{client_mac}: null
-  /subscribers/{subscriber_id}/schedules: null
-  /subscribers/{subscriber_id}/schedules/{schedule_id}: null
-  /subscribers/{subscriber_id}/groups/{group_id}/schedules: null
-  /subscribers/{subscriber_id}/groups/{group_id}/schedules/{schedule_id}: null
+          description: Group list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    post:
+      summary: Create group
+      description: Create a new group. Maximum of 20 groups allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not generate `config-raw`. Group creation stores group metadata only and does not create active device-side enforcement.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupCreateRequest'
+      responses:
+        '200':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/groups/{group_id}:
+    get:
+      summary: Get group
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      responses:
+        '200':
+          description: Group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    put:
+      summary: Update group
+      description: Returns `config-raw` only when the updated group changes effective device-side policy. Display metadata changes such as `name` and `description` do not generate `config-raw`.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPutRequest'
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    delete:
+      summary: Delete group
+      description: May return non-empty `config-raw` when deleting the group changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is omitted.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      responses:
+        '200':
+          description: Group deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRawResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/groups/{group_id}/devices:
+    get:
+      summary: List devices assigned to a group
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      responses:
+        '200':
+          description: Group device assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupDevice'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    post:
+      summary: Add device to group
+      description: Assign a device (MAC address) to a group. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error. May return non-empty `config-raw` when the group has enabled linked schedules and the effective parental-control snapshot changes.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupDeviceCreateRequest'
+      responses:
+        '200':
+          description: Device assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupDeviceWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/groups/{group_id}/devices/{client_mac}:
+    get:
+      summary: Get a single device assignment
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+        - $ref: '#/components/parameters/ClientMacPath'
+      responses:
+        '200':
+          description: Device assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupDevice'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    delete:
+      summary: Remove device from group
+      description: May return non-empty `config-raw` when removing the device changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is omitted.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+        - $ref: '#/components/parameters/ClientMacPath'
+      responses:
+        '200':
+          description: Device removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRawResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/schedules:
+    get:
+      summary: List schedules
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+      responses:
+        '200':
+          description: Schedule list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Schedule'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    post:
+      summary: Create schedule
+      description: Create a new schedule. Maximum of 20 schedules allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not generate `config-raw`. Schedule creation stores schedule data only and does not create active device-side enforcement until the schedule is linked to a group with devices.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleCreateRequest'
+      responses:
+        '200':
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/schedules/{schedule_id}:
+    get:
+      summary: Get schedule
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      responses:
+        '200':
+          description: Schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    put:
+      summary: Update schedule
+      description: May return non-empty `config-raw` when the updated schedule changes effective device-side policy for linked groups with devices.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchedulePutRequest'
+      responses:
+        '200':
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    delete:
+      summary: Delete schedule
+      description: May return non-empty `config-raw` when deleting the schedule changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is omitted.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      responses:
+        '200':
+          description: Schedule deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRawResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/groups/{group_id}/schedules:
+    get:
+      summary: List group-schedule links
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      responses:
+        '200':
+          description: Group-schedule links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupScheduleLink'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    post:
+      summary: Link schedule to group
+      description: May return non-empty `config-raw` when the group has devices and the linked schedule is enabled, causing the effective parental-control snapshot to change.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupScheduleLinkRequest'
+      responses:
+        '200':
+          description: Schedule linked to group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupScheduleWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    put:
+      summary: Replace schedules linked to group
+      description: May return non-empty `config-raw` when the replacement changes the effective parental-control snapshot for the group.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupScheduleReplaceRequest'
+      responses:
+        '200':
+          description: Group schedule links replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupScheduleReplaceResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/groups/{group_id}/schedules/{schedule_id}:
+    get:
+      summary: Get a single group-schedule link
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      responses:
+        '200':
+          description: Group-schedule link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupScheduleLink'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+    delete:
+      summary: Unlink schedule from group
+      description: May return non-empty `config-raw` when unlinking changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the unlink, `config-raw` is omitted.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/GroupIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      responses:
+        '200':
+          description: Group schedule link removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRawResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
 components:
   securitySchemes:
-    bearerAuth:
+    PublicTokenAuth:
       type: http
       scheme: bearer
+      bearerFormat: JWT
+      description: "Bearer authentication token for Public API interface endpoints."
     PrivateInternalNameAuth:
       type: apiKey
       in: header
       name: X-INTERNAL-NAME
-      description: Internal identifier header required on the Private API interface.
+      description: "Internal identifier header required on the Private API interface."
     PrivateApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-KEY
-      description: API Key authorization header required on the Private API interface.
-  parameters: null
-  SubscriberIdPath: null
-  name: null
-  in: path
-  required:
-    - code
-    - message
-  schema: null
-  type: object
-  format: uuid
-  GroupIdPath: null
-  ScheduleIdPath: null
-  ClientMacPath: null
-  pattern: ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$
-  responses: null
-  BadRequest: null
-  description: Group-schedule replace response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
-  content: null
-  application/json: null
-  $ref: '#/components/schemas/GroupScheduleLink'
-  Unauthorized: null
-  NotFound: null
-  Conflict: null
-  StorageFailure: null
-  schemas: null
-  Group: null
-  properties: null
-  id: null
-  subscriber_id: null
-  group_config_index: null
-  nullable: true
-  created_at: null
-  updated_at: null
-  GroupCreateRequest: null
-  minLength: 1
-  GroupPutRequest: null
-  GroupDevice: null
-  group_id: null
-  client_mac: null
-  GroupDeviceCreateRequest: null
-  Schedule: null
-  schedule_config_index: null
-  enabled: null
-  action_type: null
-  enum:
-    - APP
-  target_kind: null
-  target_value: null
-  start_minute: null
-  minimum: 0
-  maximum: 6
-  stop_minute: null
-  weekdays: null
-  minItems: 1
-  uniqueItems: true
-  items: null
-  ScheduleCreateFields: null
-  default: true
-  ScheduleCreateInternetRequest: null
-  allOf:
-    - $ref: '#/components/schemas/ConfigRawResponse'
-    - type: object
-  ScheduleCreateAppRequest: null
-  ScheduleCreateRequest: null
-  oneOf:
-    - $ref: '#/components/schemas/SchedulePutInternetRequest'
-    - $ref: '#/components/schemas/SchedulePutAppRequest'
-  SchedulePutFields: null
-  SchedulePutInternetRequest: null
-  SchedulePutAppRequest: null
-  SchedulePutRequest: null
-  GroupScheduleLink: null
-  schedule_id: null
-  GroupScheduleLinkRequest: null
-  GroupScheduleReplaceRequest: null
-  schedule_ids: null
-  ConfigRawCommand: null
-  maxItems: 3
-  ConfigRawResponse: null
-  config-raw: null
-  GroupWriteResponse: null
-  GroupDeviceWriteResponse: null
-  ScheduleWriteResponse: null
-  GroupScheduleWriteResponse: null
-  GroupScheduleReplaceResponse: null
-  links: null
-  ErrorResponse: null
-  error: null
-  code: null
-  message: null
-  details: null
-  additionalProperties: true
+      description: "API Key authorization header required on the Private API interface."
+  parameters:
+    SubscriberIdPath:
+      name: subscriber_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GroupIdPath:
+      name: group_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ScheduleIdPath:
+      name: schedule_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ClientMacPath:
+      name: client_mac
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    StorageFailure:
+      description: Storage failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Group:
+      type: object
+      required: [id, subscriber_id, group_config_index, name, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscriber_id:
+          type: string
+          format: uuid
+        group_config_index:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    GroupCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+    GroupPutRequest:
+      type: object
+      description: Full replacement request for mutable group fields. `PUT` requests must send the complete mutable group representation.
+      required: [name, description]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+    GroupDevice:
+      type: object
+      required: [subscriber_id, group_id, client_mac, created_at, updated_at]
+      properties:
+        subscriber_id:
+          type: string
+          format: uuid
+        group_id:
+          type: string
+          format: uuid
+        client_mac:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    GroupDeviceCreateRequest:
+      type: object
+      required: [client_mac]
+      properties:
+        client_mac:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+    Schedule:
+      type: object
+      required: [id, subscriber_id, schedule_config_index, name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscriber_id:
+          type: string
+          format: uuid
+        schedule_config_index:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        action_type:
+          type: string
+          enum: [BLOCK]
+        target_kind:
+          type: string
+          enum: [INTERNET, APP]
+        target_value:
+          type: string
+          nullable: true
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        stop_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ScheduleCreateFields:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+          default: true
+        action_type:
+          type: string
+          enum: [BLOCK]
+        target_kind:
+          type: string
+          enum: [INTERNET, APP]
+        target_value:
+          type: string
+          nullable: true
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        stop_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+    ScheduleCreateInternetRequest:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleCreateFields'
+        - type: object
+          required: [name, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+          properties:
+            target_kind:
+              type: string
+              enum: [INTERNET]
+            target_value:
+              type: string
+              nullable: true
+              description: Must be `null` when `target_kind = INTERNET`.
+    ScheduleCreateAppRequest:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleCreateFields'
+        - type: object
+          required: [name, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+          properties:
+            target_kind:
+              type: string
+              enum: [APP]
+            target_value:
+              type: string
+              minLength: 1
+              description: Required non-empty application identifier when `target_kind = APP`.
+    ScheduleCreateRequest:
+      description: Create request. INTERNET schedules must send `target_value = null`. APP schedules must send a non-empty `target_value`. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
+      oneOf:
+        - $ref: '#/components/schemas/ScheduleCreateInternetRequest'
+        - $ref: '#/components/schemas/ScheduleCreateAppRequest'
+    SchedulePutFields:
+      type: object
+      description: Full replacement request for mutable schedule fields. `PUT` requests must send the complete mutable schedule representation.
+      required: [name, description, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        action_type:
+          type: string
+          enum: [BLOCK]
+        target_kind:
+          type: string
+          enum: [INTERNET, APP]
+        target_value:
+          type: string
+          nullable: true
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        stop_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+    SchedulePutInternetRequest:
+      allOf:
+        - $ref: '#/components/schemas/SchedulePutFields'
+        - type: object
+          properties:
+            target_kind:
+              type: string
+              enum: [INTERNET]
+            target_value:
+              type: string
+              nullable: true
+              description: Must be `null` when `target_kind = INTERNET`.
+    SchedulePutAppRequest:
+      allOf:
+        - $ref: '#/components/schemas/SchedulePutFields'
+        - type: object
+          properties:
+            target_kind:
+              type: string
+              enum: [APP]
+            target_value:
+              type: string
+              minLength: 1
+              description: Required non-empty application identifier when `target_kind = APP`.
+    SchedulePutRequest:
+      description: Full replacement request. `PUT` requests must send the complete mutable schedule representation. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
+      oneOf:
+        - $ref: '#/components/schemas/SchedulePutInternetRequest'
+        - $ref: '#/components/schemas/SchedulePutAppRequest'
+    GroupScheduleLink:
+      type: object
+      required: [subscriber_id, group_id, schedule_id, created_at]
+      properties:
+        subscriber_id:
+          type: string
+          format: uuid
+        group_id:
+          type: string
+          format: uuid
+        schedule_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+    GroupScheduleLinkRequest:
+      type: object
+      required: [schedule_id]
+      properties:
+        schedule_id:
+          type: string
+          format: uuid
+    GroupScheduleReplaceRequest:
+      type: object
+      required: [schedule_ids]
+      properties:
+        schedule_ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    ConfigRawCommand:
+      type: array
+      minItems: 2
+      maxItems: 3
+      description: Ordered config-raw command tuple. Tuple ordering in the response must be deterministic for identical effective subscriber policy state.
+      items:
+        type: string
+    ConfigRawResponse:
+      type: object
+      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is omitted when the write succeeds without a device-side policy change. When present, it contains the full parental-control-owned snapshot to be merged into the device payload. Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
+      properties:
+        config-raw:
+          type: array
+          minItems: 1
+          description: Ordered full parental-control command snapshot. Present only when the successful write changes device-side policy and the resulting parental-control snapshot is non-empty. Missing parental-control sections are removed by the device-side apply flow, so the array shall include every parental-control-owned command needed after the write. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
+          items:
+            $ref: '#/components/schemas/ConfigRawCommand'
+    GroupWriteResponse:
+      description: Group write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - $ref: '#/components/schemas/Group'
+    GroupDeviceWriteResponse:
+      description: Group-device write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - $ref: '#/components/schemas/GroupDevice'
+    ScheduleWriteResponse:
+      description: Schedule write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - $ref: '#/components/schemas/Schedule'
+    GroupScheduleWriteResponse:
+      description: Group-schedule write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - $ref: '#/components/schemas/GroupScheduleLink'
+    GroupScheduleReplaceResponse:
+      description: Group-schedule replace response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy and the resulting parental-control snapshot is non-empty.
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - type: object
+          properties:
+            links:
+              type: array
+              items:
+                $ref: '#/components/schemas/GroupScheduleLink'
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
