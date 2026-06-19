@@ -95,6 +95,21 @@ func TestParentalControlAPI(t *testing.T) {
 			App:            privateApp,
 		},
 		{
+			ID:             "TC-SYS-PUBLIC-GET-001",
+			Desc:           "System diagnostics GET on public app is not found",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/system?command=info",
+			ExpectedStatus: http.StatusNotFound,
+		},
+		{
+			ID:             "TC-SYS-PUBLIC-POST-001",
+			Desc:           "System diagnostics POST on public app is not found",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/system",
+			RequestBody:    `{"command":"setloglevel","subsystems":[{"tag":"http","value":"debug"}]}`,
+			ExpectedStatus: http.StatusNotFound,
+		},
+		{
 			ID:             "TC-CREATE-GROUP-001",
 			Desc:           "Create group successfully",
 			Method:         http.MethodPost,
