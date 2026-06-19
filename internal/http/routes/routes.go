@@ -7,20 +7,14 @@ import (
 	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
 
-type PublicDeps struct {
-	DB          *db.Database
-	AuthHandler fiber.Handler
-	Subsystem   subsysteroutes.Config
-}
-
-type PrivateDeps struct {
+type Deps struct {
 	DB          *db.Database
 	AuthHandler fiber.Handler
 	Subsystem   subsysteroutes.Config
 }
 
 // RegisterPublic configures the public HTTP router paths.
-func RegisterPublic(app *fiber.App, deps PublicDeps) {
+func RegisterPublic(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)
 
 	// Create authenticated route group
@@ -60,7 +54,7 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 }
 
 // RegisterPrivate configures the private/internal HTTP router paths.
-func RegisterPrivate(app *fiber.App, deps PrivateDeps) {
+func RegisterPrivate(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)
 
 	// Create authenticated route group

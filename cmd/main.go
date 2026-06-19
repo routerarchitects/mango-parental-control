@@ -25,15 +25,12 @@ func main() {
 	}
 
 	// 3. Initialize structured slog logger
-	rootLog, loggerShutdown, err := logger.Init(cfg.Logger.Config)
+	rootLog, loggerShutdown, err := logger.Init(cfg.Logger)
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize structured logger: %v", err))
 	}
 	defer loggerShutdown()
 
-	if rootLog == nil {
-		panic("logger initialization returned nil logger")
-	}
 	rootLog.InfoContext(ctx, "structured logger successfully initialized")
 
 	// 4. Construct the application wiring and dependencies

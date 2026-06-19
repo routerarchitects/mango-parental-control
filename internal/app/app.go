@@ -28,10 +28,8 @@ type App struct {
 // New initializes all dependencies and builds the App.
 func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, error) {
 	// Validate authentication configuration dependencies
-	if cfg.Auth.Enabled {
-		if !cfg.Discovery.Enabled || !cfg.RPC.Enabled {
-			return nil, fmt.Errorf("invalid configuration: public authentication (AUTH_ENABLED) requires both service discovery (DISCOVERY_ENABLED) and service RPC (SERVICE_RPC_ENABLED) to be enabled")
-		}
+	if cfg.Auth.Enabled && (!cfg.Discovery.Enabled || !cfg.RPC.Enabled) {
+		return nil, fmt.Errorf("invalid configuration: public authentication (AUTH_ENABLED) requires both service discovery (DISCOVERY_ENABLED) and service RPC (SERVICE_RPC_ENABLED) to be enabled")
 	}
 
 	// 1. Establish database connection pool
@@ -39,10 +37,14 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	if err != nil {
 		return nil, fmt.Errorf("database connection failure: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			database.Close()
+		}
+	}()
 
 	// 2. Run automated SQL migrations
 	if err := database.RunMigrations(ctx, "db/schema"); err != nil {
-		database.Close()
 		return nil, fmt.Errorf("database schema migration failure: %w", err)
 	}
 
@@ -51,11 +53,10 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	if cfg.Discovery.Enabled {
 		discovery, err = servicediscovery.New(
 			cfg.Discovery.Config,
-			cfg.Kafka.Config,
+			cfg.Kafka,
 			logger.Subsystem("service-discovery"),
 		)
 		if err != nil {
-			database.Close()
 			return nil, fmt.Errorf("failed to create service discovery instance: %w", err)
 		}
 	} else {
@@ -74,14 +75,12 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 			logger.Subsystem("service-rpc"),
 		)
 		if err != nil {
-			database.Close()
 			return nil, fmt.Errorf("failed to create service RPC factory: %w", err)
 		}
 
 		// Retrieve Security Client validator
 		tokenValidator, err = rpcFactory.SecurityClient()
 		if err != nil {
-			database.Close()
 			return nil, fmt.Errorf("failed to create security auth client: %w", err)
 		}
 	} else {
@@ -89,23 +88,17 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	}
 
 	// 5. Assemble Fiber HTTP apps module
-	publicAuthConfig := auth.PublicAuthConfig{}
-	privateAuthConfig := auth.InternalAPIKeyConfig{
-		ExpectedAPIKey: cfg.Discovery.InstanceKey,
-	}
-
 	module, err := apphttp.NewModule(apphttp.Dependencies{
 		DB:                database,
 		ServerLogger:      logger.Subsystem("server"),
 		ServerConfig:      cfg.Server,
-		SubsystemConfig:   cfg.Subsystem.Config,
-		PublicAuthConfig:  publicAuthConfig,
-		PrivateAuthConfig: privateAuthConfig,
+		SubsystemConfig:   cfg.Subsystem,
+		PublicAuthConfig:  auth.PublicAuthConfig{},
+		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: cfg.Discovery.InstanceKey},
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
 	})
 	if err != nil {
-		database.Close()
 		return nil, fmt.Errorf("failed to create HTTP module: %w", err)
 	}
 

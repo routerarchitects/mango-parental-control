@@ -82,23 +82,15 @@ func (db *Database) Close() {
 func (db *Database) RunMigrations(ctx context.Context, schemaDir string) error {
 	db.log.InfoContext(ctx, "checking database migrations", "directory", schemaDir)
 
-	// Ensure the migration directory exists. If it doesn't, fail startup.
-	if _, err := os.Stat(schemaDir); os.IsNotExist(err) {
-		return apperror.New(apperror.CodeInternal, fmt.Sprintf("database migrations directory '%s' does not exist", schemaDir))
-	}
-
-	// Initialize tracking table
-	createTableSQL := `
+	if _, err := db.Pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version VARCHAR(255) PRIMARY KEY,
 			applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-	`
-	if _, err := db.Pool.Exec(ctx, createTableSQL); err != nil {
+	`); err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "failed to create schema_migrations table", err)
 	}
 
-	// Scan the directory for SQL files
 	entries, err := os.ReadDir(schemaDir)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "failed to read schema directory", err)
@@ -110,47 +102,43 @@ func (db *Database) RunMigrations(ctx context.Context, schemaDir string) error {
 			sqlFiles = append(sqlFiles, entry.Name())
 		}
 	}
-
-	// Sort migrations lexicographically (e.g. 0001_initial.sql, 0002_add_users.sql)
 	sort.Strings(sqlFiles)
 
-	for _, file := range sqlFiles {
-		filePath := filepath.Join(schemaDir, file)
+	rows, err := db.Pool.Query(ctx, "SELECT version FROM schema_migrations")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "failed to query schema_migrations", err)
+	}
+	defer rows.Close()
 
-		// Check if this migration was already applied
-		var exists bool
-		checkSQL := `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)`
-		err := db.Pool.QueryRow(ctx, checkSQL, file).Scan(&exists)
-		if err != nil {
-			return apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to check migration state for %s", file), err)
+	applied := make(map[string]bool)
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return err
 		}
+		applied[v] = true
+	}
 
-		if exists {
+	for _, file := range sqlFiles {
+		if applied[file] {
 			continue
 		}
 
 		db.log.InfoContext(ctx, "applying database migration", "file", file)
-
-		content, err := os.ReadFile(filePath)
+		content, err := os.ReadFile(filepath.Join(schemaDir, file))
 		if err != nil {
 			return apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to read migration file %s", file), err)
 		}
 
-		// Run the migration in a transaction
 		err = pgx.BeginFunc(ctx, db.Pool, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, string(content)); err != nil {
 				return err
 			}
-
-			insertSQL := `INSERT INTO schema_migrations (version) VALUES ($1)`
-			if _, err := tx.Exec(ctx, insertSQL, file); err != nil {
-				return err
-			}
-			return nil
+			_, err = tx.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", file)
+			return err
 		})
-
 		if err != nil {
-			return apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("migration %s failed to execute, transaction rolled back", file), err)
+			return apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("migration %s failed to execute", file), err)
 		}
 
 		db.log.InfoContext(ctx, "successfully applied migration", "file", file)

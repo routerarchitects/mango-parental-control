@@ -15,17 +15,14 @@ type Group struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// GroupCreateRequest payload for POST /api/v1/subscribers/{subscriber_id}/groups
-type GroupCreateRequest struct {
+// GroupRequest payload for group write operations (POST/PUT)
+type GroupRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
 }
 
-// GroupPutRequest payload for PUT /api/v1/subscribers/{subscriber_id}/groups/{group_id}
-type GroupPutRequest struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-}
+type GroupCreateRequest = GroupRequest
+type GroupPutRequest = GroupRequest
 
 // GroupDevice represents a client MAC assigned to a group.
 type GroupDevice struct {
@@ -59,8 +56,8 @@ type Schedule struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
-// ScheduleCreateRequest payload for POST /api/v1/subscribers/{subscriber_id}/schedules
-type ScheduleCreateRequest struct {
+// ScheduleRequest payload for schedule write operations (POST/PUT)
+type ScheduleRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
 	Enabled     *bool   `json:"enabled,omitempty"` // pointer to detect presence
@@ -72,18 +69,8 @@ type ScheduleCreateRequest struct {
 	Weekdays    []int   `json:"weekdays"`
 }
 
-// SchedulePutRequest payload for PUT /api/v1/subscribers/{subscriber_id}/schedules/{schedule_id}
-type SchedulePutRequest struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Enabled     *bool   `json:"enabled"`
-	ActionType  string  `json:"action_type"`
-	TargetKind  string  `json:"target_kind"`
-	TargetValue *string `json:"target_value"`
-	StartMinute *int    `json:"start_minute"`
-	StopMinute  *int    `json:"stop_minute"`
-	Weekdays    []int   `json:"weekdays"`
-}
+type ScheduleCreateRequest = ScheduleRequest
+type SchedulePutRequest = ScheduleRequest
 
 // GroupScheduleLink represents a link between a group and a schedule.
 type GroupScheduleLink struct {

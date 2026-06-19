@@ -26,8 +26,8 @@ func RegisterRequestLog(app *fiber.App, logger *slog.Logger) {
 
 // ServiceAuth manages public and private authentication middleware state.
 type ServiceAuth struct {
-	publicAuth  fiber.Handler
-	privateAuth fiber.Handler
+	PublicAuth  fiber.Handler
+	PrivateAuth fiber.Handler
 }
 
 // NewServiceAuth creates and configures public and private auth handlers.
@@ -61,17 +61,7 @@ func NewServiceAuth(
 	}
 
 	return &ServiceAuth{
-		publicAuth:  publicAuth,
-		privateAuth: privateAuth,
+		PublicAuth:  publicAuth,
+		PrivateAuth: privateAuth,
 	}, nil
-}
-
-// GetPublicAuthHandler returns the public/bearer authentication middleware.
-func (sa *ServiceAuth) GetPublicAuthHandler() fiber.Handler {
-	return sa.publicAuth
-}
-
-// GetPrivateAuthHandler returns the private/internal API key authentication middleware.
-func (sa *ServiceAuth) GetPrivateAuthHandler() fiber.Handler {
-	return sa.privateAuth
 }

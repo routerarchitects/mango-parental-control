@@ -26,10 +26,6 @@ type PostgresConfig struct {
 	SSLMode     string `env:"STORAGE_TYPE_POSTGRESQL_SSLMODE" envDefault:"disable"`
 }
 
-type KafkaConfig struct {
-	kafka.Config
-}
-
 type DiscoveryConfig struct {
 	Enabled bool `env:"DISCOVERY_ENABLED" envDefault:"true"`
 	servicediscovery.Config
@@ -43,23 +39,15 @@ type AuthConfig struct {
 	Enabled bool `env:"AUTH_ENABLED" envDefault:"true"`
 }
 
-type LoggerConfig struct {
-	logger.Config
-}
-
-type SubsystemConfig struct {
-	subsystem.Config
-}
-
 type Config struct {
 	Server    ServerConfig
 	Database  PostgresConfig
-	Kafka     KafkaConfig
+	Kafka     kafka.Config
 	Discovery DiscoveryConfig
 	RPC       RPCConfig
 	Auth      AuthConfig
-	Logger    LoggerConfig
-	Subsystem SubsystemConfig
+	Logger    logger.Config
+	Subsystem subsystem.Config
 }
 
 // Load parses environment variables into the Config struct.

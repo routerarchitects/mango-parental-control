@@ -47,6 +47,58 @@ func sendError(c fiber.Ctx, status int, code, message string, details map[string
 	})
 }
 
+func validateExtraFields(body []byte, allowed []string) error {
+	var rawBody map[string]any
+	if err := json.Unmarshal(body, &rawBody); err != nil {
+		return err
+	}
+	allowedMap := make(map[string]bool, len(allowed))
+	for _, val := range allowed {
+		allowedMap[val] = true
+	}
+	for k := range rawBody {
+		if !allowedMap[k] {
+			return fmt.Errorf("Unknown extra field: %s", k)
+		}
+	}
+	return nil
+}
+
+func validateScheduleRequest(req models.ScheduleRequest, isUpdate bool) (string, error) {
+	if req.Name == "" || req.ActionType == "" || req.TargetKind == "" || req.StartMinute == nil || req.StopMinute == nil || len(req.Weekdays) == 0 || (isUpdate && req.Enabled == nil) {
+		return "invalid_request", fmt.Errorf("Missing required fields")
+	}
+	if req.ActionType != "BLOCK" {
+		return "invalid_request", fmt.Errorf("action_type must be BLOCK")
+	}
+	if req.TargetKind != "INTERNET" && req.TargetKind != "APP" {
+		return "invalid_request", fmt.Errorf("target_kind must be INTERNET or APP")
+	}
+	if *req.StartMinute < 0 || *req.StartMinute > 1439 || *req.StopMinute < 0 || *req.StopMinute > 1439 {
+		return "invalid_request", fmt.Errorf("Minutes must be between 0 and 1439")
+	}
+	if *req.StartMinute == *req.StopMinute {
+		return "invalid_schedule", fmt.Errorf("Start and stop minutes must not be equal")
+	}
+	wMap := make(map[int]bool)
+	for _, w := range req.Weekdays {
+		if w < 0 || w > 6 {
+			return "invalid_request", fmt.Errorf("Weekdays must be in range 0..6")
+		}
+		if wMap[w] {
+			return "invalid_request", fmt.Errorf("Duplicate weekdays are rejected")
+		}
+		wMap[w] = true
+	}
+	if req.TargetKind == "INTERNET" && req.TargetValue != nil {
+		return "invalid_request", fmt.Errorf("target_value must be null for INTERNET")
+	}
+	if req.TargetKind == "APP" && (req.TargetValue == nil || *req.TargetValue == "") {
+		return "invalid_request", fmt.Errorf("target_value is required for APP")
+	}
+	return "", nil
+}
+
 func getMaxGroupsLimit() int {
 	val := os.Getenv("PC_MAX_GROUPS_LIMIT")
 	if val == "" {
@@ -481,12 +533,8 @@ func (h *ServiceHandler) CreateGroup(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		if k != "name" && k != "description" {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"name", "description"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	if req.Name == "" {
@@ -587,12 +635,8 @@ func (h *ServiceHandler) UpdateGroup(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		if k != "name" && k != "description" {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"name", "description"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	if req.Name == "" {
@@ -742,12 +786,8 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		if k != "client_mac" {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"client_mac"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	if req.ClientMAC == "" {
@@ -955,53 +995,13 @@ func (h *ServiceHandler) CreateSchedule(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		switch k {
-		case "name", "description", "enabled", "action_type", "target_kind", "target_value", "start_minute", "stop_minute", "weekdays":
-		default:
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"name", "description", "enabled", "action_type", "target_kind", "target_value", "start_minute", "stop_minute", "weekdays"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	// Request validations
-	if req.Name == "" || req.ActionType == "" || req.TargetKind == "" || req.StartMinute == nil || req.StopMinute == nil || len(req.Weekdays) == 0 {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Missing required fields", nil)
-	}
-
-	if req.ActionType != "BLOCK" {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "action_type must be BLOCK", nil)
-	}
-	if req.TargetKind != "INTERNET" && req.TargetKind != "APP" {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_kind must be INTERNET or APP", nil)
-	}
-
-	if *req.StartMinute < 0 || *req.StartMinute > 1439 || *req.StopMinute < 0 || *req.StopMinute > 1439 {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Minutes must be between 0 and 1439", nil)
-	}
-	if *req.StartMinute == *req.StopMinute {
-		return sendError(c, fiber.StatusBadRequest, "invalid_schedule", "Start and stop minutes must not be equal", nil)
-	}
-
-	// Validate weekdays uniqueness and range
-	wMap := make(map[int]bool)
-	for _, w := range req.Weekdays {
-		if w < 0 || w > 6 {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Weekdays must be in range 0..6", nil)
-		}
-		if wMap[w] {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Duplicate weekdays are rejected", nil)
-		}
-		wMap[w] = true
-	}
-
-	// Validate target value constraints
-	if req.TargetKind == "INTERNET" && req.TargetValue != nil {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_value must be null for INTERNET", nil)
-	}
-	if req.TargetKind == "APP" && (req.TargetValue == nil || *req.TargetValue == "") {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_value is required for APP", nil)
+	if code, err := validateScheduleRequest(models.ScheduleRequest(req), false); err != nil {
+		return sendError(c, fiber.StatusBadRequest, code, err.Error(), nil)
 	}
 
 	// Check limits
@@ -1119,53 +1119,13 @@ func (h *ServiceHandler) UpdateSchedule(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		switch k {
-		case "name", "description", "enabled", "action_type", "target_kind", "target_value", "start_minute", "stop_minute", "weekdays":
-		default:
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"name", "description", "enabled", "action_type", "target_kind", "target_value", "start_minute", "stop_minute", "weekdays"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	// Request validations
-	if req.Name == "" || req.ActionType == "" || req.TargetKind == "" || req.StartMinute == nil || req.StopMinute == nil || len(req.Weekdays) == 0 || req.Enabled == nil {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Missing required fields", nil)
-	}
-
-	if req.ActionType != "BLOCK" {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "action_type must be BLOCK", nil)
-	}
-	if req.TargetKind != "INTERNET" && req.TargetKind != "APP" {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_kind must be INTERNET or APP", nil)
-	}
-
-	if *req.StartMinute < 0 || *req.StartMinute > 1439 || *req.StopMinute < 0 || *req.StopMinute > 1439 {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Minutes must be between 0 and 1439", nil)
-	}
-	if *req.StartMinute == *req.StopMinute {
-		return sendError(c, fiber.StatusBadRequest, "invalid_schedule", "Start and stop minutes must not be equal", nil)
-	}
-
-	// Validate weekdays uniqueness and range
-	wMap := make(map[int]bool)
-	for _, w := range req.Weekdays {
-		if w < 0 || w > 6 {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Weekdays must be in range 0..6", nil)
-		}
-		if wMap[w] {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Duplicate weekdays are rejected", nil)
-		}
-		wMap[w] = true
-	}
-
-	// Validate target value constraints
-	if req.TargetKind == "INTERNET" && req.TargetValue != nil {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_value must be null for INTERNET", nil)
-	}
-	if req.TargetKind == "APP" && (req.TargetValue == nil || *req.TargetValue == "") {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "target_value is required for APP", nil)
+	if code, err := validateScheduleRequest(models.ScheduleRequest(req), true); err != nil {
+		return sendError(c, fiber.StatusBadRequest, code, err.Error(), nil)
 	}
 
 	// Check if exists
@@ -1330,12 +1290,8 @@ func (h *ServiceHandler) LinkSchedule(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		if k != "schedule_id" {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"schedule_id"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	if req.ScheduleID == "" || !validateUUID(req.ScheduleID) {
@@ -1462,12 +1418,8 @@ func (h *ServiceHandler) ReplaceSchedules(c fiber.Ctx) error {
 	}
 
 	// Validate extra fields
-	var rawBody map[string]any
-	_ = json.Unmarshal(c.Body(), &rawBody)
-	for k := range rawBody {
-		if k != "schedule_ids" {
-			return sendError(c, fiber.StatusBadRequest, "invalid_request", fmt.Sprintf("Unknown extra field: %s", k), nil)
-		}
+	if err := validateExtraFields(c.Body(), []string{"schedule_ids"}); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
 	// Check group exists

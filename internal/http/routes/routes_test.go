@@ -33,14 +33,14 @@ func TestParentalControlAPI(t *testing.T) {
 		return c.SendStatus(http.StatusUnauthorized)
 	}
 
-	routes.RegisterPublic(app, routes.PublicDeps{
+	routes.RegisterPublic(app, routes.Deps{
 		DB:          dbConn,
 		AuthHandler: mockAuthPublic,
 		Subsystem:   subsysteroutes.Config{},
 	})
 
 	privateApp := fiber.New()
-	routes.RegisterPrivate(privateApp, routes.PrivateDeps{
+	routes.RegisterPrivate(privateApp, routes.Deps{
 		AuthHandler: mockAuthPrivate,
 		Subsystem:   subsysteroutes.Config{},
 	})
@@ -449,7 +449,7 @@ func TestSubscriberWorkflow(t *testing.T) {
 		return c.Next()
 	}
 
-	routes.RegisterPublic(app, routes.PublicDeps{
+	routes.RegisterPublic(app, routes.Deps{
 		DB:          dbConn,
 		AuthHandler: mockAuth,
 		Subsystem:   subsysteroutes.Config{},

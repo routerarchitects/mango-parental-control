@@ -60,7 +60,6 @@ func TestMain(m *testing.M) {
 func printSummaryTable() {
 	resultsMu.Lock()
 	defer resultsMu.Unlock()
-
 	if len(results) == 0 {
 		return
 	}
@@ -71,18 +70,16 @@ func printSummaryTable() {
 	fmt.Printf("%-35s | %-70s | %-15s\n", "TestCase", "Name", "Result")
 	fmt.Println("-------------------------------------------------------------------------------------------------------------------------------------")
 	for _, r := range results {
-		statusStr := r.Status
-		if statusStr == "PASS" {
-			statusStr = "\033[32mPASS\033[0m"
-		} else if statusStr == "FAIL" {
-			statusStr = "\033[31mFAIL\033[0m"
-		} else if statusStr == "SKIP" {
-			statusStr = "\033[33mSKIP\033[0m"
+		color := "32"
+		if r.Status == "FAIL" {
+			color = "31"
+		} else if r.Status == "SKIP" {
+			color = "33"
 		}
+		statusStr := fmt.Sprintf("\033[%sm%s\033[0m", color, r.Status)
 
 		displayName := r.ID
-		parts := strings.Split(displayName, "/")
-		if len(parts) > 1 {
+		if parts := strings.Split(displayName, "/"); len(parts) > 1 {
 			displayName = parts[len(parts)-1]
 		}
 		fmt.Printf("%-35s | %-70s | %-15s\n", displayName, r.Desc, statusStr)
@@ -103,11 +100,10 @@ func statusText(code int) string {
 }
 
 func findSchemaDir() string {
-	if _, err := os.Stat("db/schema"); err == nil {
-		return "db/schema"
-	}
-	if _, err := os.Stat("../../../db/schema"); err == nil {
-		return "../../../db/schema"
+	for _, p := range []string{"db/schema", "../../../db/schema", "../../db/schema"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
 	}
 	return "../../db/schema"
 }
@@ -189,13 +185,11 @@ func testAndAssert(
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
+	fmt.Printf("%s (%s)\nRequest: %s %s\nHeaders: %v\n", id, desc, req.Method, req.URL.String(), req.Header)
 	if reqBody != "" {
-		fmt.Printf("%s (%s)\nRequest: %s %s\nHeaders: %v\nRequest Body:\n%s\nResponse Status: %s\nResponse Body:\n%s\n------------------------------------------------------------\n\n",
-			id, desc, req.Method, req.URL.String(), req.Header, prettyJSON([]byte(reqBody)), statusText(resp.StatusCode), prettyJSON(bodyBytes))
-	} else {
-		fmt.Printf("%s (%s)\nRequest: %s %s\nHeaders: %v\nResponse Status: %s\nResponse Body:\n%s\n------------------------------------------------------------\n\n",
-			id, desc, req.Method, req.URL.String(), req.Header, statusText(resp.StatusCode), prettyJSON(bodyBytes))
+		fmt.Printf("Request Body:\n%s\n", prettyJSON([]byte(reqBody)))
 	}
+	fmt.Printf("Response Status: %s\nResponse Body:\n%s\n------------------------------------------------------------\n\n", statusText(resp.StatusCode), prettyJSON(bodyBytes))
 
 	if resp.StatusCode != expectedStatus {
 		t.Errorf("%s: expected status %d, got %d. Body: %s", id, expectedStatus, resp.StatusCode, string(bodyBytes))
