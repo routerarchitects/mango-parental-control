@@ -67,9 +67,9 @@ func printSummaryTable() {
 	fmt.Println("\n=====================================================================================================================================")
 	fmt.Println("                                                         TEST SUMMARY REPORT                                                         ")
 	fmt.Println("=====================================================================================================================================")
-	fmt.Printf("%-35s | %-70s | %-15s\n", "TestCase", "Name", "Result")
+	fmt.Printf("%-4s | %-35s | %-70s | %-15s\n", "S.No", "TestCase", "Name", "Result")
 	fmt.Println("-------------------------------------------------------------------------------------------------------------------------------------")
-	for _, r := range results {
+	for i, r := range results {
 		color := "32"
 		if r.Status == "FAIL" {
 			color = "31"
@@ -82,7 +82,7 @@ func printSummaryTable() {
 		if parts := strings.Split(displayName, "/"); len(parts) > 1 {
 			displayName = parts[len(parts)-1]
 		}
-		fmt.Printf("%-35s | %-70s | %-15s\n", displayName, r.Desc, statusStr)
+		fmt.Printf("%-4d | %-35s | %-70s | %-15s\n", i+1, displayName, r.Desc, statusStr)
 	}
 	fmt.Println("=====================================================================================================================================")
 }
