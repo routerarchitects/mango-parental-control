@@ -3,12 +3,12 @@ package http
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/routerarchitects/mango-parental-control/internal/config"
+	"github.com/routerarchitects/mango-parental-control/internal/db"
 	"github.com/routerarchitects/mango-parental-control/internal/http/middleware"
 	"github.com/routerarchitects/mango-parental-control/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
@@ -17,6 +17,7 @@ import (
 )
 
 type Dependencies struct {
+	DB                *db.Database
 	ServerLogger      *slog.Logger
 	ServerConfig      config.ServerConfig
 	SubsystemConfig   subsystemroutes.Config
@@ -60,14 +61,16 @@ func NewModule(deps Dependencies) (*Module, error) {
 	middleware.RegisterRequestLog(privateApp, deps.ServerLogger)
 
 	// Configure public routes
-	routes.RegisterPublic(publicApp, routes.PublicDeps{
-		AuthHandler: authMiddleware.GetPublicAuthHandler(),
+	routes.RegisterPublic(publicApp, routes.Deps{
+		DB:          deps.DB,
+		AuthHandler: authMiddleware.PublicAuth,
 		Subsystem:   deps.SubsystemConfig,
 	})
 
 	// Configure private routes
-	routes.RegisterPrivate(privateApp, routes.PrivateDeps{
-		AuthHandler: authMiddleware.GetPrivateAuthHandler(),
+	routes.RegisterPrivate(privateApp, routes.Deps{
+		DB:          deps.DB,
+		AuthHandler: authMiddleware.PrivateAuth,
 		Subsystem:   deps.SubsystemConfig,
 	})
 
@@ -85,12 +88,5 @@ func (m *Module) Start(ctx context.Context) (<-chan error, error) {
 
 // Shutdown gracefully stops both Fiber listeners.
 func (m *Module) Shutdown() error {
-	var errs []error
-	if err := m.publicApp.Shutdown(); err != nil {
-		errs = append(errs, fmt.Errorf("public application shutdown: %w", err))
-	}
-	if err := m.privateApp.Shutdown(); err != nil {
-		errs = append(errs, fmt.Errorf("private application shutdown: %w", err))
-	}
-	return errors.Join(errs...)
+	return errors.Join(m.publicApp.Shutdown(), m.privateApp.Shutdown())
 }

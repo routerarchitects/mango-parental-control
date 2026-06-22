@@ -37,7 +37,7 @@ run: certs
 	fi
 
 test:
-	@echo "Running unit tests..."
+	@echo "Running unit and integration tests..."
 	go test -v -race ./...
 
 tidy:

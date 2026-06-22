@@ -33,6 +33,12 @@ A standardized, production-ready microservice foundation skeleton for the Mango 
 │   ├── config/                  # caarlos0/env environment parsing
 │   ├── db/                      # Connection pool (pgxpool) & migration engine
 │   ├── http/                    # Routing, middleware, and Dual TLS engine
+│   │   ├── handlers/            # REST API endpoint handlers
+│   │   │   ├── handlers.go      # Implementation of route logic
+│   │   │   └── handlers_test.go # Focused unit tests for handler helpers & validation
+│   │   └── routes/              # HTTP router setup and path registration
+│   │       ├── routes.go        # Router configuration
+│   │       └── routes_test.go   # Integration tests for route paths
 │   ├── models/                  # Domain-level request/response model structs
 │   └── services/                # Business logic interfaces and services
 ├── .dockerignore                # Exclusions for Docker build context
@@ -40,6 +46,20 @@ A standardized, production-ready microservice foundation skeleton for the Mango 
 ├── Dockerfile                   # Multi-stage production container configuration
 ├── Makefile                     # Build, run, test, and containerize commands
 ├── README.md                    # This developer guide
+```
+
+---
+
+## Running Tests
+
+### Full Test Suite (requires running PostgreSQL DB)
+```bash
+make test
+```
+
+### Unit Tests Only (no database required)
+```bash
+go test -v ./internal/http/handlers
 ```
 
 ---
@@ -79,7 +99,7 @@ Once you have initialized the repository (Phase 1), run the following commands t
 1. **Customize the service name and ports**:
    Define your service settings as environment variables, then run the customization and rename commands:
    ```bash
-   # 1. Define your new service configurations (e.g. PUBLIC_PORT="16010", PRIVATE_PORT="17010"):
+   # 1. Define your new service configurations (e.g. PUBLIC_PORT="16008", PRIVATE_PORT="17008"):
    export NEW_SERVICE_NAME="<new-service-name>"
    export PUBLIC_PORT="<public-port>"
    export PRIVATE_PORT="<private-port>"

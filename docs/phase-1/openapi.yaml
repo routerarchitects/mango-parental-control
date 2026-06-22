@@ -380,7 +380,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/GroupScheduleLink'
+                  $ref: '#/components/schemas/Schedule'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -706,7 +706,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/ScheduleCreateFields'
         - type: object
-          required: [name, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+          required: [name, action_type, target_kind, start_minute, stop_minute, weekdays]
           properties:
             target_kind:
               type: string
@@ -727,7 +727,7 @@ components:
             target_value:
               type: string
               minLength: 1
-              description: Required non-empty application identifier when `target_kind = APP`.
+              description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
     ScheduleCreateRequest:
       description: Create request. INTERNET schedules must send `target_value = null`. APP schedules must send a non-empty `target_value`. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
       oneOf:
@@ -736,7 +736,6 @@ components:
     SchedulePutFields:
       type: object
       description: Full replacement request for mutable schedule fields. `PUT` requests must send the complete mutable schedule representation.
-      required: [name, description, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
       properties:
         name:
           type: string
@@ -775,6 +774,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SchedulePutFields'
         - type: object
+          required: [name, description, enabled, action_type, target_kind, start_minute, stop_minute, weekdays]
           properties:
             target_kind:
               type: string
@@ -787,6 +787,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SchedulePutFields'
         - type: object
+          required: [name, description, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
           properties:
             target_kind:
               type: string
@@ -794,7 +795,7 @@ components:
             target_value:
               type: string
               minLength: 1
-              description: Required non-empty application identifier when `target_kind = APP`.
+              description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
     SchedulePutRequest:
       description: Full replacement request. `PUT` requests must send the complete mutable schedule representation. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
       oneOf:

@@ -1,0 +1,6 @@
+firewall_defaults:
+  src: down1v0
+  dest: up0v0
+  family: any
+  proto: all
+  target: REJECT

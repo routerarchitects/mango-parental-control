@@ -68,7 +68,7 @@ COPY --from=builder /src/mango-parental-control/db /app/db
 RUN adduser -D -u 65532 appuser
 USER appuser
 
-# Expose Public Port (16010) and Private/System Port (17010)
-EXPOSE 16010 17010
+# Expose Public Port (16008) and Private/System Port (17008)
+EXPOSE 16008 17008
 
 ENTRYPOINT ["/app/mango-parental-control"]

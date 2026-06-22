@@ -8,10 +8,11 @@ Detailed Behavior is described in the following documents:
 
 | Document | Purpose |
 |---|---|
-| `docs/design.md` | Design |
-| `docs/openapi.yaml` | OpenAPI-style API contract |
-| `docs/config-raw.md` | Config generation rules |
-| `docs/examples/` | End-to-end examples and generated config samples |
+| `docs/phase-1/design.md` | Design |
+| `docs/phase-1/openapi.yaml` | OpenAPI-style API contract |
+| `docs/phase-1/config-raw.md` | Config generation rules |
+| `docs/phase-1/testcases.md` | Test cases and validation matrices |
+| `docs/phase-1/examples/` | End-to-end examples and generated config samples |
 
 ---
 
