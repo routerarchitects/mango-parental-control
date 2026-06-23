@@ -1451,6 +1451,14 @@ func (h *ServiceHandler) ReplaceSchedules(c fiber.Ctx) error {
 		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Malformed JSON body", nil)
 	}
 
+	var rawBody map[string]interface{}
+	if err := json.Unmarshal(c.Body(), &rawBody); err != nil {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Malformed JSON body", nil)
+	}
+	if _, exists := rawBody["schedule_ids"]; !exists {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Missing required field 'schedule_ids'", nil)
+	}
+
 	// Validate extra fields
 	if err := validateExtraFields(c.Body(), []string{"schedule_ids"}); err != nil {
 		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)

@@ -112,7 +112,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Create group
-      description: Create a new group. Maximum of 20 groups allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not generate `config-raw`. Group creation stores group metadata only and does not create active device-side enforcement.
+      description: Create a new group. Maximum of 20 groups allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not usually produce a non-empty config-raw snapshot unless effective policy state changes. Group creation stores group metadata only and does not create active device-side enforcement.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
       requestBody:
@@ -288,7 +288,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Create schedule
-      description: Create a new schedule. Maximum of 20 schedules allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not generate `config-raw`. Schedule creation stores schedule data only and does not create active device-side enforcement until the schedule is linked to a group with devices.
+      description: Create a new schedule. Maximum of 20 schedules allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not usually produce a non-empty config-raw snapshot unless effective policy state changes. Schedule creation stores schedule data only and does not create active device-side enforcement until the schedule is linked to a group with devices.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
       requestBody:
@@ -570,6 +570,7 @@ components:
           format: date-time
     GroupCreateRequest:
       type: object
+      additionalProperties: false
       required: [name]
       properties:
         name:
@@ -580,8 +581,9 @@ components:
           nullable: true
     GroupPutRequest:
       type: object
+      additionalProperties: false
       description: Full replacement request for mutable group fields. `PUT` requests must send the complete mutable group representation.
-      required: [name, description]
+      required: [name]
       properties:
         name:
           type: string
@@ -610,6 +612,7 @@ components:
           format: date-time
     GroupDeviceCreateRequest:
       type: object
+      additionalProperties: false
       required: [client_mac]
       properties:
         client_mac:
@@ -667,6 +670,7 @@ components:
           format: date-time
     ScheduleCreateFields:
       type: object
+      additionalProperties: false
       properties:
         name:
           type: string
@@ -735,6 +739,7 @@ components:
         - $ref: '#/components/schemas/ScheduleCreateAppRequest'
     SchedulePutFields:
       type: object
+      additionalProperties: false
       description: Full replacement request for mutable schedule fields. `PUT` requests must send the complete mutable schedule representation.
       properties:
         name:
@@ -774,7 +779,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SchedulePutFields'
         - type: object
-          required: [name, description, enabled, action_type, target_kind, start_minute, stop_minute, weekdays]
+          required: [name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays]
           properties:
             target_kind:
               type: string
@@ -787,7 +792,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SchedulePutFields'
         - type: object
-          required: [name, description, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+          required: [name, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
           properties:
             target_kind:
               type: string
@@ -819,6 +824,7 @@ components:
           format: date-time
     GroupScheduleLinkRequest:
       type: object
+      additionalProperties: false
       required: [schedule_id]
       properties:
         schedule_id:
@@ -826,6 +832,7 @@ components:
           format: uuid
     GroupScheduleReplaceRequest:
       type: object
+      additionalProperties: false
       required: [schedule_ids]
       properties:
         schedule_ids:
@@ -843,12 +850,13 @@ components:
         type: string
     ConfigRawResponse:
       type: object
-      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is omitted when the write succeeds without a device-side policy change. When present, it contains the full parental-control-owned snapshot to be merged into the device payload. Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
+      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property may be present as null, an empty array `[]`, or a populated array containing the full parental-control-owned snapshot, depending on the write result. Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
       properties:
         config-raw:
           type: array
           minItems: 0
-          description: Ordered full parental-control command snapshot. Present only when the successful write changes device-side policy. When the policy becomes empty, the array is empty `[]` to signal that all parental-control-owned sections should be cleared on the device. Missing parental-control sections are removed by the device-side apply flow, so the array shall include every parental-control-owned command needed after the write. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
+          nullable: true
+          description: Ordered full parental-control command snapshot. Depending on the write result, this property may be present as null, an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Present only when the successful write changes device-side policy. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
           items:
             $ref: '#/components/schemas/ConfigRawCommand'
     GroupWriteResponse:
