@@ -668,9 +668,10 @@ components:
         updated_at:
           type: string
           format: date-time
-    ScheduleCreateFields:
+    ScheduleCreateInternetRequest:
       type: object
       additionalProperties: false
+      required: [name, action_type, target_kind, start_minute, stop_minute, weekdays]
       properties:
         name:
           type: string
@@ -686,10 +687,11 @@ components:
           enum: [BLOCK]
         target_kind:
           type: string
-          enum: [INTERNET, APP]
+          enum: [INTERNET]
         target_value:
           type: string
           nullable: true
+          description: Must be `null` when `target_kind = INTERNET`.
         start_minute:
           type: integer
           minimum: 0
@@ -706,41 +708,55 @@ components:
             type: integer
             minimum: 0
             maximum: 6
-    ScheduleCreateInternetRequest:
-      allOf:
-        - $ref: '#/components/schemas/ScheduleCreateFields'
-        - type: object
-          required: [name, action_type, target_kind, start_minute, stop_minute, weekdays]
-          properties:
-            target_kind:
-              type: string
-              enum: [INTERNET]
-            target_value:
-              type: string
-              nullable: true
-              description: Must be `null` when `target_kind = INTERNET`.
     ScheduleCreateAppRequest:
-      allOf:
-        - $ref: '#/components/schemas/ScheduleCreateFields'
-        - type: object
-          required: [name, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
-          properties:
-            target_kind:
-              type: string
-              enum: [APP]
-            target_value:
-              type: string
-              minLength: 1
-              description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
+      type: object
+      additionalProperties: false
+      required: [name, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+          default: true
+        action_type:
+          type: string
+          enum: [BLOCK]
+        target_kind:
+          type: string
+          enum: [APP]
+        target_value:
+          type: string
+          minLength: 1
+          description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        stop_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
     ScheduleCreateRequest:
       description: Create request. INTERNET schedules must send `target_value = null`. APP schedules must send a non-empty `target_value`. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
       oneOf:
         - $ref: '#/components/schemas/ScheduleCreateInternetRequest'
         - $ref: '#/components/schemas/ScheduleCreateAppRequest'
-    SchedulePutFields:
+    SchedulePutInternetRequest:
       type: object
       additionalProperties: false
-      description: Full replacement request for mutable schedule fields. `PUT` requests must send the complete mutable schedule representation.
+      required: [name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays]
       properties:
         name:
           type: string
@@ -755,10 +771,11 @@ components:
           enum: [BLOCK]
         target_kind:
           type: string
-          enum: [INTERNET, APP]
+          enum: [INTERNET]
         target_value:
           type: string
           nullable: true
+          description: Must be `null` when `target_kind = INTERNET`.
         start_minute:
           type: integer
           minimum: 0
@@ -775,32 +792,45 @@ components:
             type: integer
             minimum: 0
             maximum: 6
-    SchedulePutInternetRequest:
-      allOf:
-        - $ref: '#/components/schemas/SchedulePutFields'
-        - type: object
-          required: [name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays]
-          properties:
-            target_kind:
-              type: string
-              enum: [INTERNET]
-            target_value:
-              type: string
-              nullable: true
-              description: Must be `null` when `target_kind = INTERNET`.
     SchedulePutAppRequest:
-      allOf:
-        - $ref: '#/components/schemas/SchedulePutFields'
-        - type: object
-          required: [name, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
-          properties:
-            target_kind:
-              type: string
-              enum: [APP]
-            target_value:
-              type: string
-              minLength: 1
-              description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
+      type: object
+      additionalProperties: false
+      required: [name, enabled, action_type, target_kind, target_value, start_minute, stop_minute, weekdays]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        action_type:
+          type: string
+          enum: [BLOCK]
+        target_kind:
+          type: string
+          enum: [APP]
+        target_value:
+          type: string
+          minLength: 1
+          description: Required application identifier when `target_kind = APP`. For Phase 1, only "YOUTUBE" is supported (case-insensitive).
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        stop_minute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
     SchedulePutRequest:
       description: Full replacement request. `PUT` requests must send the complete mutable schedule representation. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
       oneOf:
