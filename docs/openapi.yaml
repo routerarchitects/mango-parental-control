@@ -112,7 +112,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Create group
-      description: Create a new group. Maximum of 20 groups allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not usually produce a non-empty config-raw snapshot unless effective policy state changes. Group creation stores group metadata only and does not create active device-side enforcement.
+      description: Create a new group. Maximum of 20 groups allowed per subscriber. Exceeding this limit returns a 409 Conflict error. The response always contains the `config-raw` field, which will be `null` for no-op changes or populated if the effective policy state changes. Group creation stores group metadata only and does not create active device-side enforcement.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
       requestBody:
@@ -151,7 +151,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     put:
       summary: Update group
-      description: Returns `config-raw` only when the updated group changes effective device-side policy. Display metadata changes such as `name` and `description` do not generate `config-raw`.
+      description: The response always contains the `config-raw` field, which will be populated only when the updated group changes effective device-side policy, or `null` for no-op changes (such as changing only `name` or `description`).
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -175,7 +175,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     delete:
       summary: Delete group
-      description: May return `config-raw` when deleting the group changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`.
+      description: The response always contains the `config-raw` field. If deleting the group changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`. For no-op changes, it is returned as `null`.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -211,7 +211,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Add device to group
-      description: Assign a device (MAC address) to a group. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error. May return non-empty `config-raw` when the group has enabled linked schedules and the effective parental-control snapshot changes.
+      description: Assign a device (MAC address) to a group. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -253,7 +253,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     delete:
       summary: Remove device from group
-      description: May return `config-raw` when removing the device changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`.
+      description: The response always contains the `config-raw` field. If removing the device changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`. For no-op changes, it is returned as `null`.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -288,7 +288,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Create schedule
-      description: Create a new schedule. Maximum of 20 schedules allowed per subscriber. Exceeding this limit returns a 409 Conflict error. Does not usually produce a non-empty config-raw snapshot unless effective policy state changes. Schedule creation stores schedule data only and does not create active device-side enforcement until the schedule is linked to a group with devices.
+      description: Create a new schedule. Maximum of 20 schedules allowed per subscriber. Exceeding this limit returns a 409 Conflict error. The response always contains the `config-raw` field, which will be `null` for no-op changes or populated if the effective policy state changes. Schedule creation stores schedule data only and does not create active device-side enforcement until the schedule is linked to a group with devices.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
       requestBody:
@@ -327,7 +327,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     put:
       summary: Update schedule
-      description: May return non-empty `config-raw` when the updated schedule changes effective device-side policy for linked groups with devices.
+      description: The response always contains the `config-raw` field, which will be populated only when the updated schedule changes effective device-side policy for linked groups with devices, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/ScheduleIdPath'
@@ -351,7 +351,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     delete:
       summary: Delete schedule
-      description: May return `config-raw` when deleting the schedule changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`.
+      description: The response always contains the `config-raw` field. If deleting the schedule changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`. For no-op changes, it is returned as `null`.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/ScheduleIdPath'
@@ -387,7 +387,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Link schedule to group
-      description: May return non-empty `config-raw` when the group has devices and the linked schedule is enabled, causing the effective parental-control snapshot to change.
+      description: The response always contains the `config-raw` field, which will contain the updated commands if the group has devices and the linked schedule is enabled, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -410,7 +410,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     put:
       summary: Replace schedules linked to group
-      description: May return non-empty `config-raw` when the replacement changes the effective parental-control snapshot for the group.
+      description: The response always contains the `config-raw` field, which will contain the updated commands if the replacement changes the effective parental-control snapshot for the group, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -451,7 +451,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     delete:
       summary: Unlink schedule from group
-      description: May return `config-raw` when unlinking changes the remaining effective parental-control snapshot. If no parental-control-owned snapshot remains after the unlink, `config-raw` is returned as an empty array `[]`.
+      description: The response always contains the `config-raw` field. If unlinking changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the unlink, `config-raw` is returned as an empty array `[]`. For no-op changes, it is returned as `null`.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -691,7 +691,7 @@ components:
         target_value:
           type: string
           nullable: true
-          description: Must be `null` when `target_kind = INTERNET`.
+          description: Must be `null` or omitted entirely when `target_kind = INTERNET`.
         start_minute:
           type: integer
           minimum: 0
@@ -749,7 +749,7 @@ components:
             minimum: 0
             maximum: 6
     ScheduleCreateRequest:
-      description: Create request. INTERNET schedules must send `target_value = null`. APP schedules must send a non-empty `target_value`. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
+      description: Create request. INTERNET schedules must omit `target_value` or send `target_value = null`. APP schedules must send a non-empty `target_value`. `start_minute` and `stop_minute` must not be equal. `weekdays` values must be distinct. Schedule times are interpreted in the gateway/router local timezone.
       oneOf:
         - $ref: '#/components/schemas/ScheduleCreateInternetRequest'
         - $ref: '#/components/schemas/ScheduleCreateAppRequest'
@@ -775,7 +775,7 @@ components:
         target_value:
           type: string
           nullable: true
-          description: Must be `null` when `target_kind = INTERNET`.
+          description: Must be `null` or omitted entirely when `target_kind = INTERNET`.
         start_minute:
           type: integer
           minimum: 0
@@ -880,37 +880,37 @@ components:
         type: string
     ConfigRawResponse:
       type: object
-      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property may be present as null, an empty array `[]`, or a populated array containing the full parental-control-owned snapshot, depending on the write result. Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
+      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response (either as `null` for no-op changes, an empty array `[]` when policy is cleared, or a populated array containing the full parental-control-owned snapshot). Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
       properties:
         config-raw:
           type: array
           minItems: 0
           nullable: true
-          description: Ordered full parental-control command snapshot. Depending on the write result, this property may be present as null, an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Present only when the successful write changes device-side policy. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
+          description: Ordered full parental-control command snapshot. This property is always present in the response. Depending on the write result, it will be `null` (for no-op changes), an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
           items:
             $ref: '#/components/schemas/ConfigRawCommand'
     GroupWriteResponse:
-      description: Group write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy.
+      description: Group write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/Group'
     GroupDeviceWriteResponse:
-      description: Group-device write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy.
+      description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/GroupDevice'
     ScheduleWriteResponse:
-      description: Schedule write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy.
+      description: Schedule write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/Schedule'
     GroupScheduleWriteResponse:
-      description: Group-schedule write response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy.
+      description: Group-schedule write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/GroupScheduleLink'
     GroupScheduleReplaceResponse:
-      description: Group-schedule replace response. May include `config-raw` through `ConfigRawResponse` when the successful write changes effective device-side policy.
+      description: Group-schedule replace response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - type: object
