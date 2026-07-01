@@ -165,10 +165,10 @@ func TestParentalControlAPI(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
-			ID:             "TC-GET-GROUP-PRIVATE-001",
-			Desc:           "Get group details successfully on private router with auth",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}",
+			ID:     "TC-GET-GROUP-PRIVATE-001",
+			Desc:   "Get group details successfully on private router with auth",
+			Method: http.MethodGet,
+			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}",
 			Headers: map[string]string{
 				"X-API-KEY":       "{apiKey}",
 				"X-INTERNAL-NAME": "{internalName}",
@@ -177,10 +177,10 @@ func TestParentalControlAPI(t *testing.T) {
 			App:            privateApp,
 		},
 		{
-			ID:             "TC-GET-GROUP-PRIVATE-002",
-			Desc:           "Get group details on private router fails with missing/invalid auth",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}",
+			ID:     "TC-GET-GROUP-PRIVATE-002",
+			Desc:   "Get group details on private router fails with missing/invalid auth",
+			Method: http.MethodGet,
+			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}",
 			Headers: map[string]string{
 				"X-API-KEY":       "invalid-key",
 				"X-INTERNAL-NAME": "{internalName}",
@@ -232,8 +232,8 @@ func TestParentalControlAPI(t *testing.T) {
 		// These verify that all routes registered via the shared registerAPIRoutes()
 		// helper are reachable on the private router, not just the groups family.
 		{
-			ID:   "TC-PRIVATE-SMOKE-DEVICES-001",
-			Desc: "Devices API is reachable on private router with valid internal auth",
+			ID:     "TC-PRIVATE-SMOKE-DEVICES-001",
+			Desc:   "Devices API is reachable on private router with valid internal auth",
 			Method: http.MethodGet,
 			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
 			Headers: map[string]string{
@@ -244,8 +244,8 @@ func TestParentalControlAPI(t *testing.T) {
 			App:            privateApp,
 		},
 		{
-			ID:   "TC-PRIVATE-SMOKE-SCHEDULES-001",
-			Desc: "Schedules API is reachable on private router with valid internal auth",
+			ID:     "TC-PRIVATE-SMOKE-SCHEDULES-001",
+			Desc:   "Schedules API is reachable on private router with valid internal auth",
 			Method: http.MethodGet,
 			URL:    "/api/v1/subscribers/{subID}/schedules",
 			Headers: map[string]string{
@@ -256,8 +256,8 @@ func TestParentalControlAPI(t *testing.T) {
 			App:            privateApp,
 		},
 		{
-			ID:   "TC-PRIVATE-SMOKE-GROUP-SCHEDULES-001",
-			Desc: "Group-schedules API is reachable on private router with valid internal auth",
+			ID:     "TC-PRIVATE-SMOKE-GROUP-SCHEDULES-001",
+			Desc:   "Group-schedules API is reachable on private router with valid internal auth",
 			Method: http.MethodGet,
 			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}/schedules",
 			Headers: map[string]string{

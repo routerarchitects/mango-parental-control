@@ -349,4 +349,3 @@ func TestConnect_SucceedsOnBootstrap(t *testing.T) {
 		}
 	})
 }
-
