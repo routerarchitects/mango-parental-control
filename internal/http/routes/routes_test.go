@@ -41,6 +41,7 @@ func TestParentalControlAPI(t *testing.T) {
 
 	privateApp := fiber.New()
 	routes.RegisterPrivate(privateApp, routes.Deps{
+		DB:          dbConn,
 		AuthHandler: mockAuthPrivate,
 		Subsystem:   subsysteroutes.Config{},
 	})
@@ -164,6 +165,30 @@ func TestParentalControlAPI(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
+			ID:             "TC-GET-GROUP-PRIVATE-001",
+			Desc:           "Get group details successfully on private router with auth",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}",
+			Headers: map[string]string{
+				"X-API-KEY":       "{apiKey}",
+				"X-INTERNAL-NAME": "{internalName}",
+			},
+			ExpectedStatus: http.StatusOK,
+			App:            privateApp,
+		},
+		{
+			ID:             "TC-GET-GROUP-PRIVATE-002",
+			Desc:           "Get group details on private router fails with missing/invalid auth",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}",
+			Headers: map[string]string{
+				"X-API-KEY":       "invalid-key",
+				"X-INTERNAL-NAME": "{internalName}",
+			},
+			ExpectedStatus: http.StatusUnauthorized,
+			App:            privateApp,
+		},
+		{
 			ID:             "TC-UPDATE-GROUP-001",
 			Desc:           "Update group name successfully",
 			Method:         http.MethodPut,
@@ -202,6 +227,45 @@ func TestParentalControlAPI(t *testing.T) {
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/schedules",
 			RequestBody:    `{"schedule_id":"{schID1}"}`,
 			ExpectedStatus: http.StatusOK,
+		},
+		// ── Private router smoke checks: one endpoint per API family ────────────
+		// These verify that all routes registered via the shared registerAPIRoutes()
+		// helper are reachable on the private router, not just the groups family.
+		{
+			ID:   "TC-PRIVATE-SMOKE-DEVICES-001",
+			Desc: "Devices API is reachable on private router with valid internal auth",
+			Method: http.MethodGet,
+			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			Headers: map[string]string{
+				"X-API-KEY":       "{apiKey}",
+				"X-INTERNAL-NAME": "{internalName}",
+			},
+			ExpectedStatus: http.StatusOK,
+			App:            privateApp,
+		},
+		{
+			ID:   "TC-PRIVATE-SMOKE-SCHEDULES-001",
+			Desc: "Schedules API is reachable on private router with valid internal auth",
+			Method: http.MethodGet,
+			URL:    "/api/v1/subscribers/{subID}/schedules",
+			Headers: map[string]string{
+				"X-API-KEY":       "{apiKey}",
+				"X-INTERNAL-NAME": "{internalName}",
+			},
+			ExpectedStatus: http.StatusOK,
+			App:            privateApp,
+		},
+		{
+			ID:   "TC-PRIVATE-SMOKE-GROUP-SCHEDULES-001",
+			Desc: "Group-schedules API is reachable on private router with valid internal auth",
+			Method: http.MethodGet,
+			URL:    "/api/v1/subscribers/{subID}/groups/{groupID1}/schedules",
+			Headers: map[string]string{
+				"X-API-KEY":       "{apiKey}",
+				"X-INTERNAL-NAME": "{internalName}",
+			},
+			ExpectedStatus: http.StatusOK,
+			App:            privateApp,
 		},
 		{
 			ID:             "TC-ADD-DEVICE-002",

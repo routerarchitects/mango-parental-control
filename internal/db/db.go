@@ -27,9 +27,11 @@ func Connect(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) (
 		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("unsupported storage type: %s", cfg.StorageType))
 	}
 
-	// Ensure database exists before creating pool
+	// Ensure the configured database exists before creating the main pool.
+	// Fail fast here so bootstrap errors are surfaced directly instead of
+	// appearing later as a misleading database ping/connect failure.
 	if err := ensureDatabaseExists(ctx, cfg, log); err != nil {
-		log.WarnContext(ctx, "failed to check or create database automatically, proceeding to direct connect", "error", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "database bootstrap failed: unable to verify or create target database", err)
 	}
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
