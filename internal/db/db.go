@@ -27,6 +27,13 @@ func Connect(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) (
 		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("unsupported storage type: %s", cfg.StorageType))
 	}
 
+	// Ensure the configured database exists before creating the main pool.
+	// Fail fast here so bootstrap errors are surfaced directly instead of
+	// appearing later as a misleading database ping/connect failure.
+	if err := ensureDatabaseExists(ctx, cfg, log); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "database bootstrap failed: unable to verify or create target database", err)
+	}
+
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.Username,
 		cfg.Password,
@@ -145,5 +152,43 @@ func (db *Database) RunMigrations(ctx context.Context, schemaDir string) error {
 	}
 
 	db.log.InfoContext(ctx, "all database migrations are up to date")
+	return nil
+}
+
+func ensureDatabaseExists(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) error {
+	if strings.EqualFold(cfg.Database, "postgres") || cfg.Database == "" {
+		return nil
+	}
+
+	adminDSN := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres?sslmode=%s",
+		cfg.Username,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.SSLMode,
+	)
+
+	conn, err := pgx.Connect(ctx, adminDSN)
+	if err != nil {
+		return fmt.Errorf("failed to connect to admin database: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	var exists bool
+	query := "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
+	err = conn.QueryRow(ctx, query, cfg.Database).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check database list: %w", err)
+	}
+
+	if !exists {
+		log.InfoContext(ctx, "target database does not exist, creating it", "database", cfg.Database)
+		createSQL := fmt.Sprintf(`CREATE DATABASE "%s"`, strings.ReplaceAll(cfg.Database, `"`, `""`))
+		if _, err := conn.Exec(ctx, createSQL); err != nil {
+			return fmt.Errorf("failed to create database %s: %w", cfg.Database, err)
+		}
+		log.InfoContext(ctx, "successfully created database", "database", cfg.Database)
+	}
+
 	return nil
 }
