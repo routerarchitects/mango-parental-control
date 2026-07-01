@@ -27,7 +27,7 @@ func setupTestEnv(t *testing.T) {
 
 // loadTestConfig loads the service config and skips the test if the environment
 // is not configured for a PostgreSQL connection.
-func loadTestConfig(t *testing.T) config.Config {
+func loadTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
