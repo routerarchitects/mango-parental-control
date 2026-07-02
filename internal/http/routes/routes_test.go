@@ -97,18 +97,18 @@ func TestParentalControlAPI(t *testing.T) {
 		},
 		{
 			ID:             "TC-SYS-PUBLIC-GET-001",
-			Desc:           "System diagnostics GET on public app is not found",
+			Desc:           "System diagnostics GET on public app is successful",
 			Method:         http.MethodGet,
 			URL:            "/api/v1/system?command=info",
-			ExpectedStatus: http.StatusNotFound,
+			ExpectedStatus: http.StatusOK,
 		},
 		{
 			ID:             "TC-SYS-PUBLIC-POST-001",
-			Desc:           "System diagnostics POST on public app is not found",
+			Desc:           "System diagnostics POST on public app is successful",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/system",
 			RequestBody:    `{"command":"setloglevel","subsystems":[{"tag":"http","value":"debug"}]}`,
-			ExpectedStatus: http.StatusNotFound,
+			ExpectedStatus: http.StatusOK,
 		},
 		{
 			ID:             "TC-CREATE-GROUP-001",

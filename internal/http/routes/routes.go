@@ -20,9 +20,13 @@ func RegisterPublic(app *fiber.App, deps Deps) {
 	// Create authenticated route group
 	group := app.Group("", deps.AuthHandler)
 
+	// Register system diagnostics routes
+	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
+
 	h := handlers.NewServiceHandler(deps.DB)
 	registerAPIRoutes(group, h)
 }
+
 
 // RegisterPrivate configures the private/internal HTTP router paths.
 func RegisterPrivate(app *fiber.App, deps Deps) {
