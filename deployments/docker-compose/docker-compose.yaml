@@ -9,9 +9,6 @@ version: '3.8'
 services:
   mango-parental-control:
     image: mango-parental-control:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: openwifi_mango-parental-control
     networks:
       openwifi:
