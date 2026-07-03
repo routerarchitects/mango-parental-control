@@ -17,6 +17,8 @@ import (
 type Server struct {
 	crt         string
 	key         string
+	publicCrt   string
+	publicKey   string
 	port        int
 	privatePort int
 	logger      *slog.Logger
@@ -26,6 +28,8 @@ func NewServer(cfg config.ServerConfig, logger *slog.Logger) *Server {
 	return &Server{
 		crt:         cfg.TLS_CERT,
 		key:         cfg.TLS_KEY,
+		publicCrt:   cfg.PublicTLS_CERT,
+		publicKey:   cfg.PublicTLS_KEY,
 		port:        cfg.HTTPPort,
 		privatePort: cfg.PrivatePort,
 		logger:      logger,
@@ -41,34 +45,58 @@ func (s *Server) Start(ctx context.Context, publicApp *fiber.App, privateApp *fi
 		return nil, apperror.New(apperror.CodeInternal, "public and private HTTP ports must not be identical")
 	}
 
-	if s.crt == "" || s.key == "" {
+	// Fallback to internal certificate if public cert is not configured
+	pubCrt := s.publicCrt
+	pubKey := s.publicKey
+	if pubCrt == "" || pubKey == "" {
+		pubCrt = s.crt
+		pubKey = s.key
+	}
+
+	if pubCrt == "" || pubKey == "" || s.crt == "" || s.key == "" {
 		return nil, apperror.New(apperror.CodeInternal, "TLS certificates path must not be empty")
 	}
 
 	// Verify certificate paths exist
+	if _, err := os.Stat(pubCrt); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public certificate file %s does not exist", pubCrt), err)
+	}
+	if _, err := os.Stat(pubKey); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public private key file %s does not exist", pubKey), err)
+	}
 	if _, err := os.Stat(s.crt); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS certificate file %s does not exist", s.crt), err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS internal certificate file %s does not exist", s.crt), err)
 	}
 	if _, err := os.Stat(s.key); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS private key file %s does not exist", s.key), err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS internal private key file %s does not exist", s.key), err)
 	}
 
-	cert, err := tls.LoadX509KeyPair(s.crt, s.key)
+	publicCert, err := tls.LoadX509KeyPair(pubCrt, pubKey)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to load TLS key pair", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to load public TLS key pair", err)
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+	privateCert, err := tls.LoadX509KeyPair(s.crt, s.key)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to load internal TLS key pair", err)
+	}
+
+	publicTlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{publicCert},
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	publicListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.port), tlsConfig)
+	privateTlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{privateCert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	publicListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.port), publicTlsConfig)
 	if err != nil {
 		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to bind public port %d", s.port), err)
 	}
 
-	privateListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.privatePort), tlsConfig)
+	privateListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.privatePort), privateTlsConfig)
 	if err != nil {
 		_ = publicListener.Close()
 		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to bind private port %d", s.privatePort), err)

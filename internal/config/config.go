@@ -9,11 +9,14 @@ import (
 )
 
 type ServerConfig struct {
-	HTTPPort    int    `env:"HTTP_PORT" envDefault:"16008"`
-	PrivatePort int    `env:"PRIVATE_HTTP_PORT" envDefault:"17008"`
-	TLS_CERT    string `env:"INTERNAL_RESTAPI_HOST_CERT"`
-	TLS_KEY     string `env:"INTERNAL_RESTAPI_HOST_KEY"`
-	TLS_ROOTCA  string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
+	HTTPPort         int    `env:"HTTP_PORT" envDefault:"16008"`
+	PrivatePort      int    `env:"PRIVATE_HTTP_PORT" envDefault:"17008"`
+	PublicTLS_CERT   string `env:"RESTAPI_HOST_CERT"`
+	PublicTLS_KEY    string `env:"RESTAPI_HOST_KEY"`
+	PublicTLS_ROOTCA string `env:"RESTAPI_HOST_ROOTCA"`
+	TLS_CERT         string `env:"INTERNAL_RESTAPI_HOST_CERT"`
+	TLS_KEY          string `env:"INTERNAL_RESTAPI_HOST_KEY"`
+	TLS_ROOTCA       string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
 }
 
 type PostgresConfig struct {

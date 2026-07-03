@@ -48,9 +48,20 @@ func NewServiceAuth(
 			publicCfg.Validator = validator
 		}
 		var err error
-		publicAuth, err = auth.RequirePublicAuth(publicCfg)
+		rawPublicAuth, err := auth.RequirePublicAuth(publicCfg)
 		if err != nil {
 			return nil, err
+		}
+		// Wrap the public auth handler to capture and log any authentication errors.
+		publicAuth = func(c fiber.Ctx) error {
+			slog.Info("Authenticating request", "path", c.Path(), "method", c.Method())
+			err := rawPublicAuth(c)
+			if err != nil {
+				slog.Error("Authentication failed", "path", c.Path(), "method", c.Method(), "error", err)
+				return err
+			}
+			slog.Info("Authentication succeeded", "path", c.Path(), "method", c.Method())
+			return nil
 		}
 	}
 
@@ -65,3 +76,50 @@ func NewServiceAuth(
 		PrivateAuth: privateAuth,
 	}, nil
 }
+
+// RegisterPublicDebugLogger adds a highly detailed logger to trace public request and response details.
+func RegisterPublicDebugLogger(app *fiber.App) {
+	app.Use(func(c fiber.Ctx) error {
+		path := c.Path()
+		method := c.Method()
+
+		// Retrieve request body
+		reqBody := string(c.Body())
+		if len(reqBody) > 1000 {
+			reqBody = reqBody[:1000] + "... (truncated)"
+		}
+
+		slog.Info("DEBUG PUBLIC REQUEST",
+			"method", method,
+			"path", path,
+			"origin", c.Get("Origin"),
+			"referrer", c.Get("Referer"),
+			"auth", c.Get("Authorization"),
+			"content_type", c.Get("Content-Type"),
+			"body", reqBody,
+		)
+
+		err := c.Next()
+
+		// Retrieve response body and status
+		status := c.Response().StatusCode()
+		respBody := string(c.Response().Body())
+		if len(respBody) > 1000 {
+			respBody = respBody[:1000] + "... (truncated)"
+		}
+
+		slog.Info("DEBUG PUBLIC RESPONSE",
+			"method", method,
+			"path", path,
+			"status", status,
+			"err", err,
+			"access_control_allow_origin", string(c.Response().Header.Peek("Access-Control-Allow-Origin")),
+			"access_control_allow_methods", string(c.Response().Header.Peek("Access-Control-Allow-Methods")),
+			"access_control_allow_headers", string(c.Response().Header.Peek("Access-Control-Allow-Headers")),
+			"body", respBody,
+		)
+
+		return err
+	})
+}
+
