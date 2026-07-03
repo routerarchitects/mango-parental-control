@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 )
 
@@ -12,6 +13,29 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SYSTEM_URI_PRIVATE", "https://localhost:17008")
 	t.Setenv("SYSTEM_URI_PUBLIC", "https://localhost:16008")
 	t.Setenv("DISCOVERY_TOPIC", "service_events")
+
+	// Backup env vars to avoid modifying the caller's environment
+	discoveryEnabledEnv := os.Getenv("DISCOVERY_ENABLED")
+	serviceRpcEnabledEnv := os.Getenv("SERVICE_RPC_ENABLED")
+	authEnabledEnv := os.Getenv("AUTH_ENABLED")
+
+	// Temporarily remove env vars to test defaults
+	os.Unsetenv("DISCOVERY_ENABLED")
+	os.Unsetenv("SERVICE_RPC_ENABLED")
+	os.Unsetenv("AUTH_ENABLED")
+
+	// Restore them after the test
+	defer func() {
+		if discoveryEnabledEnv != "" {
+			os.Setenv("DISCOVERY_ENABLED", discoveryEnabledEnv)
+		}
+		if serviceRpcEnabledEnv != "" {
+			os.Setenv("SERVICE_RPC_ENABLED", serviceRpcEnabledEnv)
+		}
+		if authEnabledEnv != "" {
+			os.Setenv("AUTH_ENABLED", authEnabledEnv)
+		}
+	}()
 
 	cfg, err := Load()
 	if err != nil {

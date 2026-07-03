@@ -67,8 +67,12 @@ func NewServiceAuth(
 			slog.Info("Authenticating request", "path", c.Path(), "method", c.Method())
 			err := rawPublicAuth(c)
 			if err != nil {
-				slog.Error("Authentication failed", "path", c.Path(), "method", c.Method(), "error", err)
+				slog.Error("Authentication failed with error", "path", c.Path(), "method", c.Method(), "error", err)
 				return err
+			}
+			if c.Response().StatusCode() == fiber.StatusUnauthorized {
+				slog.Warn("Authentication failed: Unauthorized (no credentials or invalid validation)", "path", c.Path(), "method", c.Method())
+				return nil
 			}
 			slog.Info("Authentication succeeded", "path", c.Path(), "method", c.Method())
 			return nil
@@ -87,18 +91,15 @@ func NewServiceAuth(
 	}, nil
 }
 
-// RegisterPublicDebugLogger adds a highly detailed logger to trace public request and response details.
-func RegisterPublicDebugLogger(app *fiber.App) {
+// RegisterDebugLogger adds a highly detailed logger to trace request and response details.
+func RegisterDebugLogger(app *fiber.App, label string) {
 	app.Use(func(c fiber.Ctx) error {
 		path := c.Path()
 		method := c.Method()
-		fullURL := c.BaseURL() + c.OriginalURL()
+		fullURL := c.FullURL()
 
-		// Retrieve all request headers
-		reqHeaders := make(map[string]string)
-		c.Request().Header.VisitAll(func(key, val []byte) {
-			reqHeaders[string(key)] = string(val)
-		})
+		// Retrieve request headers as map
+		reqHeaders := c.GetReqHeaders()
 
 		// Retrieve request body
 		reqBody := string(c.Body())
@@ -106,7 +107,8 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 			reqBody = reqBody[:1000] + "... (truncated)"
 		}
 
-		slog.Info("DEBUG PUBLIC REQUEST STARTED",
+		slog.Debug("API REQUEST STARTED",
+			"api_type", label,
 			"method", method,
 			"path", path,
 			"full_url", fullURL,
@@ -116,11 +118,8 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 
 		err := c.Next()
 
-		// Retrieve all response headers
-		respHeaders := make(map[string]string)
-		c.Response().Header.VisitAll(func(key, val []byte) {
-			respHeaders[string(key)] = string(val)
-		})
+		// Retrieve response headers as map
+		respHeaders := c.GetRespHeaders()
 
 		// Retrieve response body and status
 		status := c.Response().StatusCode()
@@ -129,14 +128,28 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 			respBody = respBody[:1000] + "... (truncated)"
 		}
 
-		slog.Info("DEBUG PUBLIC RESPONSE COMPLETED",
-			"method", method,
-			"path", path,
-			"status", status,
-			"err", err,
-			"headers", respHeaders,
-			"body", respBody,
-		)
+		// Log results using appropriate levels: WARN for errors (>= 400), INFO for successes
+		if status >= 400 {
+			slog.Warn("API RESPONSE COMPLETED WITH ERROR",
+				"api_type", label,
+				"method", method,
+				"path", path,
+				"status", status,
+				"err", err,
+				"headers", respHeaders,
+				"body", respBody,
+			)
+		} else {
+			slog.Info("API RESPONSE COMPLETED",
+				"api_type", label,
+				"method", method,
+				"path", path,
+				"status", status,
+				"err", err,
+				"headers", respHeaders,
+				"body", respBody,
+			)
+		}
 
 		return err
 	})

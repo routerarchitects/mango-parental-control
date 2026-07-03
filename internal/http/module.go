@@ -56,8 +56,9 @@ func NewModule(deps Dependencies) (*Module, error) {
 	// Register CORS policy for external UI calls
 	middleware.RegisterPublicCORS(publicApp)
 
-	// Register debug logging for the public app to troubleshoot CORS/Auth issues
-	middleware.RegisterPublicDebugLogger(publicApp)
+	// Register debug logging for the apps to troubleshoot CORS/Auth/API issues and result tracking
+	middleware.RegisterDebugLogger(publicApp, "public")
+	middleware.RegisterDebugLogger(privateApp, "private")
 
 	// Register trace loggers
 	middleware.RegisterRequestLog(publicApp, deps.ServerLogger)

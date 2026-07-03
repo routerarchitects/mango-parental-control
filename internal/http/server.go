@@ -59,10 +59,10 @@ func (s *Server) Start(ctx context.Context, publicApp *fiber.App, privateApp *fi
 
 	// Verify certificate paths exist
 	if _, err := os.Stat(pubCrt); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public certificate file %s does not exist", pubCrt), err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public certificate file %s does not exist. For cloud deployments, ensure RESTAPI_HOST_CERT is configured and points to the public certificate (usually restapi-public-cert.pem)", pubCrt), err)
 	}
 	if _, err := os.Stat(pubKey); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public private key file %s does not exist", pubKey), err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS public private key file %s does not exist. For cloud deployments, ensure RESTAPI_HOST_KEY is configured and points to the public private key (usually restapi-public-key.pem)", pubKey), err)
 	}
 	if _, err := os.Stat(s.crt); err != nil {
 		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("TLS internal certificate file %s does not exist", s.crt), err)
@@ -73,12 +73,12 @@ func (s *Server) Start(ctx context.Context, publicApp *fiber.App, privateApp *fi
 
 	publicCert, err := tls.LoadX509KeyPair(pubCrt, pubKey)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to load public TLS key pair", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to load public TLS key pair from cert %s and key %s. Verify these are valid public certificates and keys.", pubCrt, pubKey), err)
 	}
 
 	privateCert, err := tls.LoadX509KeyPair(s.crt, s.key)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to load internal TLS key pair", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, fmt.Sprintf("failed to load internal TLS key pair from cert %s and key %s.", s.crt, s.key), err)
 	}
 
 	publicTlsConfig := &tls.Config{
