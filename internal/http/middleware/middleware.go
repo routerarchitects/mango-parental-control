@@ -47,6 +47,16 @@ func NewServiceAuth(
 		if publicCfg.Validator == nil {
 			publicCfg.Validator = validator
 		}
+		// Wrap the validation error mapper to log any inner token/API-key validation errors
+		originalOnValidationError := publicCfg.OnValidationError
+		publicCfg.OnValidationError = func(c fiber.Ctx, err error) error {
+			slog.Error("Public auth validation error occurred", "err", err, "path", c.Path(), "method", c.Method())
+			if originalOnValidationError != nil {
+				return originalOnValidationError(c, err)
+			}
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+
 		var err error
 		rawPublicAuth, err := auth.RequirePublicAuth(publicCfg)
 		if err != nil {
@@ -82,6 +92,13 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 	app.Use(func(c fiber.Ctx) error {
 		path := c.Path()
 		method := c.Method()
+		fullURL := c.BaseURL() + c.OriginalURL()
+
+		// Retrieve all request headers
+		reqHeaders := make(map[string]string)
+		c.Request().Header.VisitAll(func(key, val []byte) {
+			reqHeaders[string(key)] = string(val)
+		})
 
 		// Retrieve request body
 		reqBody := string(c.Body())
@@ -89,17 +106,21 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 			reqBody = reqBody[:1000] + "... (truncated)"
 		}
 
-		slog.Info("DEBUG PUBLIC REQUEST",
+		slog.Info("DEBUG PUBLIC REQUEST STARTED",
 			"method", method,
 			"path", path,
-			"origin", c.Get("Origin"),
-			"referrer", c.Get("Referer"),
-			"auth", c.Get("Authorization"),
-			"content_type", c.Get("Content-Type"),
+			"full_url", fullURL,
+			"headers", reqHeaders,
 			"body", reqBody,
 		)
 
 		err := c.Next()
+
+		// Retrieve all response headers
+		respHeaders := make(map[string]string)
+		c.Response().Header.VisitAll(func(key, val []byte) {
+			respHeaders[string(key)] = string(val)
+		})
 
 		// Retrieve response body and status
 		status := c.Response().StatusCode()
@@ -108,14 +129,12 @@ func RegisterPublicDebugLogger(app *fiber.App) {
 			respBody = respBody[:1000] + "... (truncated)"
 		}
 
-		slog.Info("DEBUG PUBLIC RESPONSE",
+		slog.Info("DEBUG PUBLIC RESPONSE COMPLETED",
 			"method", method,
 			"path", path,
 			"status", status,
 			"err", err,
-			"access_control_allow_origin", string(c.Response().Header.Peek("Access-Control-Allow-Origin")),
-			"access_control_allow_methods", string(c.Response().Header.Peek("Access-Control-Allow-Methods")),
-			"access_control_allow_headers", string(c.Response().Header.Peek("Access-Control-Allow-Headers")),
+			"headers", respHeaders,
 			"body", respBody,
 		)
 
