@@ -27,7 +27,6 @@ func RegisterPublic(app *fiber.App, deps Deps) {
 	registerAPIRoutes(group, h)
 }
 
-
 // RegisterPrivate configures the private/internal HTTP router paths.
 func RegisterPrivate(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)

@@ -154,4 +154,3 @@ func RegisterDebugLogger(app *fiber.App, label string) {
 		return err
 	})
 }
-
