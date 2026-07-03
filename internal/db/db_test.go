@@ -215,8 +215,8 @@ func TestConnect_FailsFastOnBootstrapError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	ctx := context.Background()
 
-	// ── Connect fails when admin host is unreachable ───────────────────────────
-	t.Run("Connect returns error on unreachable admin host", func(t *testing.T) {
+	// ── Connect fails when database host is unreachable ───────────────────────
+	t.Run("Connect returns error on unreachable database host", func(t *testing.T) {
 		badCfg := cfg.Database
 		badCfg.Host = "invalid-host-name-12345.local"
 		badCfg.Port = 9999
@@ -224,11 +224,11 @@ func TestConnect_FailsFastOnBootstrapError(t *testing.T) {
 
 		_, err := Connect(ctx, badCfg, logger)
 		if err == nil {
-			t.Fatal("expected Connect() to fail on bootstrap error, got nil")
+			t.Fatal("expected Connect() to fail on unreachable host, got nil")
 		}
-		// The error must surface the bootstrap cause, not a generic ping failure.
-		if !strings.Contains(err.Error(), "database bootstrap failed") {
-			t.Errorf("expected bootstrap failure message from Connect(), got: %v", err)
+		// The error must surface the connection failure, not a generic ping failure.
+		if !strings.Contains(err.Error(), "database connection failed") {
+			t.Errorf("expected connection failure message from Connect(), got: %v", err)
 		}
 	})
 

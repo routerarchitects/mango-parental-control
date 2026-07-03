@@ -25,7 +25,7 @@ type PostgresConfig struct {
 	Port        int    `env:"STORAGE_TYPE_POSTGRESQL_PORT" envDefault:"5432"`
 	Username    string `env:"STORAGE_TYPE_POSTGRESQL_USERNAME" envDefault:"postgres"`
 	Password    string `env:"STORAGE_TYPE_POSTGRESQL_PASSWORD" envDefault:"postgres"`
-	Database    string `env:"STORAGE_TYPE_POSTGRESQL_DATABASE" envDefault:"postgres"`
+	Database    string `env:"STORAGE_TYPE_POSTGRESQL_DATABASE" envDefault:"mango-parental-control"`
 	SSLMode     string `env:"STORAGE_TYPE_POSTGRESQL_SSLMODE" envDefault:"disable"`
 }
 

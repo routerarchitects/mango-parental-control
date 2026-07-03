@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/routerarchitects/mango-parental-control/internal/config"
 	"github.com/routerarchitects/ra-common-mods/apperror"
@@ -27,13 +29,6 @@ func Connect(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) (
 		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("unsupported storage type: %s", cfg.StorageType))
 	}
 
-	// Ensure the configured database exists before creating the main pool.
-	// Fail fast here so bootstrap errors are surfaced directly instead of
-	// appearing later as a misleading database ping/connect failure.
-	if err := ensureDatabaseExists(ctx, cfg, log); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "database bootstrap failed: unable to verify or create target database", err)
-	}
-
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.Username,
 		cfg.Password,
@@ -42,6 +37,30 @@ func Connect(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) (
 		cfg.Database,
 		cfg.SSLMode,
 	)
+
+	// Attempt a direct connection to the target application database first.
+	// This avoids forcing admin DB ("postgres") connections in environments where
+	// the service user does not have access to the admin database but the
+	// target database already exists.
+	log.DebugContext(ctx, "attempting direct connection to target database", "database", cfg.Database)
+	targetConn, err := pgx.Connect(ctx, dsn)
+	if err == nil {
+		targetConn.Close(ctx)
+		log.InfoContext(ctx, "successfully verified direct connection to target database", "database", cfg.Database)
+	} else {
+		// If connection fails, check if the error is due to the database not existing.
+		// PostgreSQL error code "3D000" is invalid_catalog_name (database does not exist).
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "3D000" {
+			log.InfoContext(ctx, "target database does not exist; attempting admin bootstrap", "database", cfg.Database)
+			if err := ensureDatabaseExists(ctx, cfg, log); err != nil {
+				return nil, apperror.Wrap(apperror.CodeInternal, "database bootstrap failed: unable to verify or create target database", err)
+			}
+		} else {
+			// Fail fast for other connection errors (e.g., credentials, host unreachable).
+			return nil, apperror.Wrap(apperror.CodeInternal, "database connection failed: unable to connect to target database", err)
+		}
+	}
 
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
