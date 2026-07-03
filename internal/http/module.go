@@ -64,7 +64,6 @@ func NewModule(deps Dependencies) (*Module, error) {
 	middleware.RegisterRequestLog(publicApp, deps.ServerLogger)
 	middleware.RegisterRequestLog(privateApp, deps.ServerLogger)
 
-
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.Deps{
 		DB:          deps.DB,
