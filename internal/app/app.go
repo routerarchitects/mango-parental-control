@@ -169,4 +169,3 @@ func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config
 	// Fallback to a default key if discovery is disabled and no key is configured
 	return "changeme"
 }
-
