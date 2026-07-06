@@ -94,7 +94,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		ServerConfig:      cfg.Server,
 		SubsystemConfig:   cfg.Subsystem,
 		PublicAuthConfig:  auth.PublicAuthConfig{},
-		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: cfg.Discovery.InstanceKey},
+		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: getExpectedAPIKey(discovery, cfg)},
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
 	})
@@ -158,3 +158,15 @@ func (a *App) Close(ctx context.Context) error {
 
 	return firstErr
 }
+
+func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config) string {
+	if discovery != nil {
+		return discovery.Self().Key
+	}
+	if cfg.Discovery.InstanceKey != "" {
+		return cfg.Discovery.InstanceKey
+	}
+	// Fallback to a default key if discovery is disabled and no key is configured
+	return "changeme"
+}
+
