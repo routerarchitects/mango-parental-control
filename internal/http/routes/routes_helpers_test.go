@@ -109,6 +109,13 @@ func findSchemaDir() string {
 }
 
 func initTestDB(t *testing.T) *db.Database {
+	setIfEmpty("DISCOVERY_TOPIC", "service_events")
+	setIfEmpty("SERVICE_TYPE", "mango-parental-control")
+	setIfEmpty("SYSTEM_URI_PRIVATE", "https://localhost:17008")
+	setIfEmpty("SYSTEM_URI_PUBLIC", "https://localhost:16008")
+	setIfEmpty("SERVICE_NAME", "mango-parental-control")
+	setIfEmpty("SERVICE_VERSION", "dev")
+
 	cfg, err := config.Load()
 	if err != nil {
 		t.Skipf("skipping test; failed to load config: %v", err)
@@ -209,6 +216,10 @@ func runTestSuite(t *testing.T, defaultApp *fiber.App, vars map[string]string, c
 			reqBody := replacePlaceholders(tc.RequestBody, vars)
 
 			headers := make(map[string]string)
+			// Inject default valid authorization token for public app test cases unless it's livez
+			if tc.App == nil && url != "/livez" {
+				headers["Authorization"] = "Bearer expected-token"
+			}
 			for k, v := range tc.Headers {
 				headers[k] = replacePlaceholders(v, vars)
 			}
@@ -224,5 +235,11 @@ func runTestSuite(t *testing.T, defaultApp *fiber.App, vars map[string]string, c
 				tc.Verify(t, bodyBytes, vars)
 			}
 		})
+	}
+}
+
+func setIfEmpty(k, v string) {
+	if os.Getenv(k) == "" {
+		os.Setenv(k, v)
 	}
 }

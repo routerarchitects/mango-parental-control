@@ -3,15 +3,38 @@ package routes_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/routerarchitects/mango-parental-control/internal/http/middleware"
 	"github.com/routerarchitects/mango-parental-control/internal/http/routes"
+	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
+
+type mockPublicValidator struct {
+	expectedToken  string
+	expectedAPIKey string
+}
+
+func (m *mockPublicValidator) ValidateToken(ctx context.Context, token string) error {
+	if token == m.expectedToken {
+		return nil
+	}
+	return fmt.Errorf("invalid token")
+}
+
+func (m *mockPublicValidator) ValidateAPIKey(ctx context.Context, apiKey string) error {
+	if apiKey == m.expectedAPIKey {
+		return nil
+	}
+	return fmt.Errorf("invalid api key")
+}
 
 func TestParentalControlAPI(t *testing.T) {
 	dbConn := initTestDB(t)
@@ -758,4 +781,63 @@ func TestSubscriberWorkflow(t *testing.T) {
 	}
 
 	runTestSuite(t, app, vars, testCases)
+}
+
+func TestPublicSystemRoutesAuth(t *testing.T) {
+	app := fiber.New()
+	mockVal := &mockPublicValidator{
+		expectedToken:  "expected-token",
+		expectedAPIKey: "expected-key",
+	}
+	publicCfg := auth.PublicAuthConfig{
+		Validator: mockVal,
+	}
+	privateCfg := auth.InternalAPIKeyConfig{
+		ExpectedAPIKey: "expected-key",
+	}
+	serviceAuth, err := middleware.NewServiceAuth(true, publicCfg, privateCfg, nil)
+	if err != nil {
+		t.Fatalf("failed to initialize service auth: %v", err)
+	}
+
+	routes.RegisterPublic(app, routes.Deps{
+		DB:          nil,
+		AuthHandler: serviceAuth.PublicAuth,
+		Subsystem:   subsysteroutes.Config{},
+	})
+
+	t.Run("unauthorized access with no credentials -> expect 401 Unauthorized", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("Test request failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("authorized access with a valid bearer token -> must pass auth", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
+		req.Header.Set("Authorization", "Bearer expected-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("Test request failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("intended controller-UI caller path using a valid X-API-KEY -> must pass auth", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
+		req.Header.Set("X-API-KEY", "expected-key")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("Test request failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
+		}
+	})
 }

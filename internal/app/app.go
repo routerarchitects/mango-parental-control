@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -87,14 +89,20 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
 	}
 
-	// 5. Assemble Fiber HTTP apps module
+	// 5. Retrieve expected internal API key
+	expectedKey, err := getExpectedAPIKey(discovery, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine internal API key: %w", err)
+	}
+
+	// 6. Assemble Fiber HTTP apps module
 	module, err := apphttp.NewModule(apphttp.Dependencies{
 		DB:                database,
 		ServerLogger:      logger.Subsystem("server"),
 		ServerConfig:      cfg.Server,
 		SubsystemConfig:   cfg.Subsystem,
 		PublicAuthConfig:  auth.PublicAuthConfig{},
-		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: getExpectedAPIKey(discovery, cfg)},
+		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: expectedKey},
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
 	})
@@ -159,13 +167,20 @@ func (a *App) Close(ctx context.Context) error {
 	return firstErr
 }
 
-func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config) string {
+func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config) (string, error) {
 	if discovery != nil {
-		return discovery.Self().Key
+		return discovery.Self().Key, nil
 	}
 	if cfg.Discovery.InstanceKey != "" {
-		return cfg.Discovery.InstanceKey
+		return cfg.Discovery.InstanceKey, nil
 	}
-	// Fallback to a default key if discovery is disabled and no key is configured
-	return "changeme"
+	if cfg.Discovery.PublicEndpoint != "" {
+		return sha256Hex(cfg.Discovery.PublicEndpoint), nil
+	}
+	return "", fmt.Errorf("internal API key not configured (SYSTEM_INSTANCE_KEY is empty and discovery is disabled)")
+}
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
