@@ -1012,7 +1012,13 @@ components:
     ClientAccessCreateRequest:
       type: object
       additionalProperties: false
-      description: Create request. The caller must send dates and times already normalized to the gateway/router local timezone. This service does not resolve or convert timezone context for this API. Supported shape for this API is a single-day quick-block window: `start_date` is the intended block date, `stop_date` is the next calendar date, and `stop_time` must be greater than `start_time`. True cross-midnight windows are not supported.
+      description: >-
+        Create request. The caller must send dates and times already normalized
+        to the gateway/router local timezone. This service does not resolve or
+        convert timezone context for this API. Supported shape for this API is a
+        single-day quick-block window: `start_date` is the intended block date,
+        `stop_date` is the next calendar date, and `stop_time` must be greater
+        than `start_time`. True cross-midnight windows are not supported.
       required: [client_mac, start_date, stop_date, start_time, stop_time]
       properties:
         client_mac:
