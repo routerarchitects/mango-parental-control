@@ -192,7 +192,7 @@ Requirements are satisfied when:
 - the service can calculate effective device-schedule policy
 - the service can generate full-snapshot `config-raw` when effective policy changes
 - the service returns `200 OK` for successful writes regardless of config generation
-- the service returns no `config-raw` field when no device-side config changes
+- the service returns `config-raw = null` when no device-side config changes
 - the service remains isolated from direct orchestration and direct gateway apply logic
 
 ---
