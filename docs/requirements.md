@@ -140,7 +140,7 @@ Write Behavior shall be idempotent at the effective policy level.
 - duplicate rows or duplicate group-schedule links shall not be created by retries
 - successful writes shall return `200 OK`
 - The service intentionally standardizes successful create, update, and delete operations on `200 OK` instead of mixing `200 OK` and `201 Created`
-- unchanged effective policy shall produce a response body that does not include `config-raw`
+- unchanged effective policy shall produce a response body with `config-raw = null`
 - changed effective policy shall produce a full parental-control `config-raw` snapshot
 - returned `config-raw`, when present, shall contain the complete parental-control-owned snapshot for the subscriber
 - when the effective parental-control snapshot becomes empty, the response body shall include `config-raw` as an empty array `[]` to signal that all parental-control-owned sections should be cleared on the device
@@ -217,6 +217,12 @@ The subscriber-facing input for pause behavior is the pause duration.
 
 Userportal / `owsub` shall convert the subscriber-provided duration into the effective enforcement window required by this API before calling Mango Parental Control Service.
 
+Userportal / `owsub` shall normalize that enforcement window to the gateway/router local date and time basis before calling Mango Parental Control Service.
+
+Mango Parental Control Service shall not resolve timezone context or convert subscriber-local, server-local, or other non-gateway-local time representations for this API.
+
+For the current phase, the supported enforcement-window model for this API is limited to a single intended block day. `start_date` shall be the intended block date, `stop_date` shall be exactly the next calendar date, and `stop_time` shall be greater than `start_time`. True cross-midnight windows are not supported through this API.
+
 The parental-control service shall receive the caller-prepared enforcement window as part of the internal request and shall use it for persistence, effective policy calculation, and supported firewall-oriented `config-raw` generation.
 
 This API shall not require the caller to first create parental-control groups, create schedules, or link schedules to groups through the existing parental-control resource APIs.
@@ -250,6 +256,20 @@ This new API exists as a dedicated internal control path for Userportal-driven s
 
 This API shall not require Userportal to translate each pause or unpause action into explicit create-group, add-device, create-schedule, or link-schedule operations before calling parental-control.
 
+### Coexistence With Existing Group/Schedule Policy
+
+Client-access pause-state for this API shall coexist with the existing group, group-device, schedule, and group-schedule policy model.
+
+This API shall not modify, unlink, disable, or delete existing group, group-device, schedule, or group-schedule state.
+
+The effective parental-control-owned `config-raw` snapshot shall include the active deny effect of both:
+- the existing group/schedule policy model
+- the client-access pause-state model
+
+If the same client MAC is covered by both models, effective deny behavior shall be the union of active deny policy from both models.
+
+Removing client-access pause-state through this API shall remove only client-access-owned pause-state. If the same client MAC remains covered by active group/schedule policy, the returned effective parental-control-owned `config-raw` snapshot shall continue to enforce the remaining block behavior for that client.
+
 ### Stored State Intent
 
 The service may persist subscriber-scoped pause-state rows required to support this API.
@@ -278,12 +298,12 @@ The parental-control service shall validate only service-owned request and rende
 At minimum, this includes:
 - required fields needed by this API contract
 - whether the caller-provided enforcement window can be represented by the supported firewall rendering model
-- whether the caller-provided enforcement window exceeds the supported date boundary for this API
+- whether the caller-provided enforcement window matches the supported single-day quick-block window model for this API
 - whether the request can be rendered into supported parental-control-owned `config-raw`
 
 For the current phase, Userportal / `owsub` shall derive the enforcement window before calling this API.
 
-If the caller-provided enforcement window exceeds the supported date boundary for this API, the service shall reject the request with a client error instead of auto-splitting, auto-extending, or auto-normalizing the request.
+If the caller-provided enforcement window does not match the supported single-day quick-block model for this API — including cases where `stop_date` is not exactly the next calendar date after `start_date`, or where `stop_time` is less than or equal to `start_time` — the service shall reject the request with a client error instead of auto-splitting, auto-extending, or auto-normalizing the request.
 
 ### Expiry and Cleanup Behavior
 
