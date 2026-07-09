@@ -139,3 +139,34 @@ Endpoints:
 | ID | Name | Expected Result |
 |---|---|---|
 | TC-WORKFLOW-001 | End-to-end subscriber workflow sequence | Verifies the complete 9-step happy path subscriber flow: group listing, group creation, device assignment, schedule creation, linking, group renaming, disabling schedule to clear policies, removing devices, and deleting the group. |
+
+---
+
+## 7. Client Access APIs
+Endpoints:
+- `POST /api/v1/subscribers/{subscriber_id}/client-access` (Pause)
+- `DELETE /api/v1/subscribers/{subscriber_id}/client-access/{client_mac}` (Unpause)
+
+Notes:
+- The caller sends a prepared enforcement window using `start_date`, `stop_date`, `start_time`, and `stop_time`.
+- Dates and times are interpreted in the gateway/router local timezone.
+- Unlike the existing Phase 1 write APIs in this document, successful no-op responses for this API return `config-raw = null`.
+
+| ID | Name | Expected Result |
+|---|---|---|
+| TC-PAUSE-CLIENT-001 | Create pause-state successfully | `200 OK`; pause-state created; returns updated `config-raw` snapshot |
+| TC-PAUSE-CLIENT-002 | Replace existing pause-state for same client successfully | `200 OK`; pause-state replaced; returns updated `config-raw` snapshot |
+| TC-PAUSE-CLIENT-003 | Repeat same pause request with unchanged effective policy | `200 OK`; no-op; returns `config-raw = null` |
+| TC-PAUSE-CLIENT-004 | Missing required field in request body | `400 Bad Request` |
+| TC-PAUSE-CLIENT-005 | Invalid MAC address format | `400 Bad Request` |
+| TC-PAUSE-CLIENT-006 | Invalid date format in enforcement window | `400 Bad Request` |
+| TC-PAUSE-CLIENT-007 | Invalid time format in enforcement window | `400 Bad Request` |
+| TC-PAUSE-CLIENT-008 | Caller-provided enforcement window exceeds supported date boundary | `400 Bad Request` |
+| TC-PAUSE-CLIENT-009 | Same-day enforcement window has invalid ordering (`stop_time` less than or equal to `start_time` with same date boundary) | `400 Bad Request` |
+| TC-PAUSE-CLIENT-010 | New pause request cleans expired stored rows before rendering effective snapshot | `200 OK`; expired rows removed; returned `config-raw` reflects only active pause-state rows |
+| TC-PAUSE-CLIENT-011 | Cross-date enforcement window within supported boundary succeeds | `200 OK`; pause-state created or replaced; returns updated `config-raw` snapshot |
+| TC-PAUSE-CLIENT-012 | Caller-provided enforcement window has invalid date ordering (`stop_date` earlier than `start_date`) | `400 Bad Request` |
+| TC-UNPAUSE-CLIENT-001 | Remove existing pause-state successfully while other active pause-state rows remain | `200 OK`; pause-state removed; returns updated `config-raw` snapshot |
+| TC-UNPAUSE-CLIENT-002 | Remove existing pause-state that is the last active client-access policy | `200 OK`; pause-state removed; returns `"config-raw": []` |
+| TC-UNPAUSE-CLIENT-003 | Remove pause-state when target client is already absent | `200 OK`; no-op; returns `config-raw = null` |
+| TC-UNPAUSE-CLIENT-004 | Unpause request also clears expired stored rows before rendering effective snapshot | `200 OK`; expired rows removed; returned `config-raw` reflects only remaining active pause-state rows or `[]` / `null` as applicable |

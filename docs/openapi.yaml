@@ -467,6 +467,48 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/StorageFailure' }
+
+  /api/v1/subscribers/{subscriber_id}/client-access:
+    post:
+      summary: Pause client internet access
+      description: Create or replace subscriber-scoped client pause-state for the target MAC address using the caller-provided enforcement window. The response always contains the `config-raw` field, which will contain the updated commands if the effective parental-control snapshot changes, or `null` for no-op changes.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientAccessCreateRequest'
+      responses:
+        '200':
+          description: Client pause-state created or replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientAccessWriteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+
+  /api/v1/subscribers/{subscriber_id}/client-access/{client_mac}:
+    delete:
+      summary: Unpause client internet access
+      description: Remove subscriber-scoped client pause-state for the target MAC address. The response always contains the `config-raw` field. If removing the pause-state changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`. If the pause-state is already absent, the operation succeeds and `config-raw` is returned as `null`.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/ClientMacPath'
+      responses:
+        '200':
+          description: Client pause-state removed or already absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRawResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
+
 components:
   securitySchemes:
     PublicTokenAuth:
@@ -934,3 +976,67 @@ components:
             details:
               type: object
               additionalProperties: true
+    ClientAccessState:
+      type: object
+      required: [subscriber_id, client_mac, start_date, stop_date, start_time, stop_time, created_at, updated_at]
+      properties:
+        subscriber_id:
+          type: string
+          format: uuid
+        client_mac:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        start_date:
+          type: string
+          format: date
+          description: Effective enforcement start date for the client-access rule.
+        stop_date:
+          type: string
+          format: date
+          description: Effective enforcement stop date for the client-access rule.
+        start_time:
+          type: string
+          pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Effective enforcement start time for the client-access rule.
+        stop_time:
+          type: string
+          pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Effective enforcement stop time for the client-access rule.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ClientAccessCreateRequest:
+      type: object
+      additionalProperties: false
+      description: Create request. Dates and times are interpreted in the gateway/router local timezone.
+      required: [client_mac, start_date, stop_date, start_time, stop_time]
+      properties:
+        client_mac:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        start_date:
+          type: string
+          format: date
+          description: Effective enforcement start date for the client-access rule.
+        stop_date:
+          type: string
+          format: date
+          description: Effective enforcement stop date for the client-access rule.
+        start_time:
+          type: string
+          pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Effective enforcement start time for the client-access rule.
+        stop_time:
+          type: string
+          pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Effective enforcement stop time for the client-access rule.
+
+    ClientAccessWriteResponse:
+      description: Client-access write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
+      allOf:
+        - $ref: '#/components/schemas/ConfigRawResponse'
+        - $ref: '#/components/schemas/ClientAccessState'
