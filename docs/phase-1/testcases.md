@@ -160,12 +160,12 @@ Notes:
 | TC-PAUSE-CLIENT-005 | Invalid MAC address format | `400 Bad Request` |
 | TC-PAUSE-CLIENT-006 | Invalid date format in enforcement window | `400 Bad Request` |
 | TC-PAUSE-CLIENT-007 | Invalid time format in enforcement window | `400 Bad Request` |
-| TC-PAUSE-CLIENT-008 | Caller-provided enforcement window violates supported single-day quick-block model | `400 Bad Request` |
+| TC-PAUSE-CLIENT-008 | Caller-derived overflow window (for example `23:30` + `1 hour`) exceeds the supported single-block-day request shape | `400 Bad Request` |
 | TC-PAUSE-CLIENT-009 | Caller-provided quick-block window has invalid time ordering (`stop_time` less than or equal to `start_time`) | `400 Bad Request` |
 | TC-PAUSE-CLIENT-010 | New pause request cleans expired stored rows before rendering effective snapshot | `200 OK`; expired rows removed; returned `config-raw` reflects only active pause-state rows |
-| TC-PAUSE-CLIENT-011 | Supported single-day quick-block window succeeds (`stop_date` is next calendar date and `stop_time` is greater than `start_time`) | `200 OK`; pause-state created or replaced; returns updated `config-raw` snapshot |
+| TC-PAUSE-CLIENT-011 | Valid single-block-day request succeeds (`start_date=2026-07-08`, `stop_date=2026-07-09`, `start_time=07:30:00`, `stop_time=08:00:00`) | `200 OK`; pause-state created or replaced; returns updated `config-raw` snapshot |
 | TC-PAUSE-CLIENT-012 | Same-date window (`start_date` equals `stop_date`) is rejected | `400 Bad Request` |
-| TC-PAUSE-CLIENT-013 | Stop date not equal to the next calendar date after `start_date` is rejected | `400 Bad Request` |
+| TC-PAUSE-CLIENT-013 | Stop date not equal to the next calendar date after `start_date` is rejected by the supported request shape | `400 Bad Request` |
 | TC-PAUSE-CLIENT-014 | Pause client that is already covered by active group/schedule policy | `200 OK`; client-access pause-state created or replaced; returned `config-raw` snapshot preserves existing group/schedule-derived enforcement and the client remains effectively blocked |
 | TC-UNPAUSE-CLIENT-001 | Remove existing pause-state successfully while other active pause-state rows remain | `200 OK`; pause-state removed; returns updated `config-raw` snapshot |
 | TC-UNPAUSE-CLIENT-002 | Remove existing pause-state that is the last active client-access policy | `200 OK`; pause-state removed; returns `"config-raw": []` |

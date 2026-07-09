@@ -471,7 +471,22 @@ paths:
   /api/v1/subscribers/{subscriber_id}/client-access:
     post:
       summary: Pause client internet access
-      description: Create or replace subscriber-scoped client pause-state for the target MAC address using a caller-provided gateway-local single-day quick-block window. For this API, `start_date` must be the intended block date, `stop_date` must be exactly the next calendar date, and `stop_time` must be greater than `start_time`. True cross-midnight windows are not supported. The caller must send dates and times already normalized to the gateway/router local timezone. The response always contains the `config-raw` field, which will contain the updated commands if the effective parental-control snapshot changes, or `null` for no-op changes.
+      description: >-
+        Create or replace subscriber-scoped client pause-state for the target
+        MAC address using a caller-provided gateway-local request shape for a
+        single intended block day. For this API, `start_date` must be the
+        intended block date, `stop_date` must be exactly the next calendar
+        date, and `start_time` and `stop_time` must describe the active
+        interval on the intended block date, with `stop_time` greater than
+        `start_time`. The next-day `stop_date` is required by the supported
+        firewall request shape and does not represent a subscriber-facing
+        multi-day block. The caller must send dates and times already
+        normalized to the gateway/router local timezone. The response always
+        contains the `config-raw` field, which will contain the updated
+        commands if the effective parental-control snapshot changes, or `null`
+        for no-op changes. This API is intended primarily for Userportal /
+        `owsub` orchestration and follows the same public/private interface
+        exposure model as the existing parental-control APIs.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
       requestBody:
@@ -494,7 +509,17 @@ paths:
   /api/v1/subscribers/{subscriber_id}/client-access/{client_mac}:
     delete:
       summary: Unpause client internet access
-      description: Remove subscriber-scoped client pause-state for the target MAC address. The response always contains the `config-raw` field. If removing the pause-state changes the remaining effective parental-control snapshot, `config-raw` contains the updated commands. If no parental-control-owned snapshot remains after the delete, `config-raw` is returned as an empty array `[]`. If the pause-state is already absent, the operation succeeds and `config-raw` is returned as `null`.
+      description: >-
+        Remove subscriber-scoped client pause-state for the target MAC address.
+        The response always contains the `config-raw` field. If removing the
+        pause-state changes the remaining effective parental-control snapshot,
+        `config-raw` contains the updated commands. If no
+        parental-control-owned snapshot remains after the delete, `config-raw`
+        is returned as an empty array `[]`. If the pause-state is already
+        absent, the operation succeeds and `config-raw` is returned as `null`.
+        This API is intended primarily for Userportal / `owsub` orchestration
+        and follows the same public/private interface exposure model as the
+        existing parental-control APIs.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/ClientMacPath'
@@ -1015,10 +1040,13 @@ components:
       description: >-
         Create request. The caller must send dates and times already normalized
         to the gateway/router local timezone. This service does not resolve or
-        convert timezone context for this API. Supported shape for this API is a
-        single-day quick-block window: `start_date` is the intended block date,
-        `stop_date` is the next calendar date, and `stop_time` must be greater
-        than `start_time`. True cross-midnight windows are not supported.
+        convert timezone context for this API. Supported shape for this API is
+        a request for a single intended block day: `start_date` is the
+        intended block date, `stop_date` is the next calendar date, and
+        `start_time` and `stop_time` describe the active interval on the
+        intended block date, with `stop_time` greater than `start_time`. The
+        next-day `stop_date` is part of the supported firewall request shape
+        and does not represent a subscriber-facing multi-day block.
       required: [client_mac, start_date, stop_date, start_time, stop_time]
       properties:
         client_mac:
@@ -1031,7 +1059,7 @@ components:
         stop_date:
           type: string
           format: date
-          description: Gateway-local next calendar date after `start_date` for the supported single-day quick-block window.
+          description: Gateway-local next calendar date after `start_date`, required by the supported firewall request shape for the intended block day.
         start_time:
           type: string
           pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'

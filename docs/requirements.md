@@ -199,9 +199,9 @@ Requirements are satisfied when:
 
 ## Client Pause and Unpause API
 
-The service shall support a dedicated internal API for subscriber client pause and unpause actions, intended to be called by Userportal when handling subscriber client access-control requests derived from the Userportal `/action?action=configure` client request body.
+The service shall support a dedicated API for subscriber client pause and unpause actions, intended primarily to be called by Userportal when handling subscriber client access-control requests derived from the Userportal `/action?action=configure` client request body.
 
-This API is a separate internal control path from the existing group, group-device, schedule, and group-schedule APIs.
+This API is a separate control path from the existing group, group-device, schedule, and group-schedule APIs.
 
 ### Intent
 
@@ -221,7 +221,7 @@ Userportal / `owsub` shall normalize that enforcement window to the gateway/rout
 
 Mango Parental Control Service shall not resolve timezone context or convert subscriber-local, server-local, or other non-gateway-local time representations for this API.
 
-For the current phase, the supported enforcement-window model for this API is limited to a single intended block day. `start_date` shall be the intended block date, `stop_date` shall be exactly the next calendar date, and `stop_time` shall be greater than `start_time`. True cross-midnight windows are not supported through this API.
+For the current phase, this API supports a single intended block day. `start_date` shall be the intended block date, `stop_date` shall be exactly the next calendar date, and `start_time` and `stop_time` shall describe the active interval on the intended block date, with `stop_time` greater than `start_time`. The next-day `stop_date` is required by the supported firewall request shape and does not represent a subscriber-facing multi-day block.
 
 The parental-control service shall receive the caller-prepared enforcement window as part of the internal request and shall use it for persistence, effective policy calculation, and supported firewall-oriented `config-raw` generation.
 
@@ -252,7 +252,7 @@ This API shall not change the passive-service rule of Mango Parental Control Ser
 
 The existing group, group-device, schedule, and group-schedule APIs remain the primary explicit parental-control resource model.
 
-This new API exists as a dedicated internal control path for Userportal-driven subscriber pause and unpause actions.
+This new API exists as a dedicated control path for Userportal-driven subscriber pause and unpause actions. Its primary use case is orchestration through Userportal / `owsub`, while its interface exposure remains consistent with the existing parental-control APIs.
 
 This API shall not require Userportal to translate each pause or unpause action into explicit create-group, add-device, create-schedule, or link-schedule operations before calling parental-control.
 
@@ -303,7 +303,7 @@ At minimum, this includes:
 
 For the current phase, Userportal / `owsub` shall derive the enforcement window before calling this API.
 
-If the caller-provided enforcement window does not match the supported single-day quick-block model for this API — including cases where `stop_date` is not exactly the next calendar date after `start_date`, or where `stop_time` is less than or equal to `start_time` — the service shall reject the request with a client error instead of auto-splitting, auto-extending, or auto-normalizing the request.
+If the caller-provided enforcement window does not match the supported single-block-day request shape for this API — including cases where `stop_date` is not exactly the next calendar date after `start_date`, where `stop_time` is less than or equal to `start_time`, or where the caller-derived pause interval would require blocking past midnight of the intended block date — the service shall reject the request with a client error instead of auto-splitting, auto-extending, or auto-normalizing the request.
 
 ### Expiry and Cleanup Behavior
 
@@ -339,7 +339,7 @@ Generated `config-raw` for this API shall:
 ### Non-Goals For This API
 
 This API shall not introduce:
-- direct Mobile App access to Mango Parental Control Service
+- direct Mobile App use of this API as the primary subscriber workflow path
 - direct gateway configuration apply
 - direct topology or provisioning lookup from Mango Parental Control Service
 - mandatory translation into explicit group and schedule resources before use
@@ -350,7 +350,7 @@ This API shall not introduce:
 ### Success Criteria For This API
 
 Requirements are satisfied when:
-- Userportal can reroute subscriber client pause and unpause intent into this new internal parental-control API
+- Userportal can reroute subscriber client pause and unpause intent into this new parental-control API
 - Userportal can derive the effective enforcement window from subscriber pause duration and send it to this API
 - the service can persist the pause-state rows required for this API
 - the service can generate valid firewall-oriented `config-raw` for pause and unpause behavior
