@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/routerarchitects/mango-parental-control/internal/config"
 	"github.com/routerarchitects/ra-common-mods/apperror"
@@ -37,30 +35,6 @@ func Connect(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) (
 		cfg.Database,
 		cfg.SSLMode,
 	)
-
-	// Attempt a direct connection to the target application database first.
-	// This avoids forcing admin DB ("postgres") connections in environments where
-	// the service user does not have access to the admin database but the
-	// target database already exists.
-	log.DebugContext(ctx, "attempting direct connection to target database", "database", cfg.Database)
-	targetConn, err := pgx.Connect(ctx, dsn)
-	if err == nil {
-		targetConn.Close(ctx)
-		log.InfoContext(ctx, "successfully verified direct connection to target database", "database", cfg.Database)
-	} else {
-		// If connection fails, check if the error is due to the database not existing.
-		// PostgreSQL error code "3D000" is invalid_catalog_name (database does not exist).
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "3D000" {
-			log.InfoContext(ctx, "target database does not exist; attempting admin bootstrap", "database", cfg.Database)
-			if err := ensureDatabaseExists(ctx, cfg, log); err != nil {
-				return nil, apperror.Wrap(apperror.CodeInternal, "database bootstrap failed: unable to verify or create target database", err)
-			}
-		} else {
-			// Fail fast for other connection errors (e.g., credentials, host unreachable).
-			return nil, apperror.Wrap(apperror.CodeInternal, "database connection failed: unable to connect to target database", err)
-		}
-	}
 
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -171,43 +145,5 @@ func (db *Database) RunMigrations(ctx context.Context, schemaDir string) error {
 	}
 
 	db.log.InfoContext(ctx, "all database migrations are up to date")
-	return nil
-}
-
-func ensureDatabaseExists(ctx context.Context, cfg config.PostgresConfig, log *slog.Logger) error {
-	if strings.EqualFold(cfg.Database, "postgres") || cfg.Database == "" {
-		return nil
-	}
-
-	adminDSN := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres?sslmode=%s",
-		cfg.Username,
-		cfg.Password,
-		cfg.Host,
-		cfg.Port,
-		cfg.SSLMode,
-	)
-
-	conn, err := pgx.Connect(ctx, adminDSN)
-	if err != nil {
-		return fmt.Errorf("failed to connect to admin database: %w", err)
-	}
-	defer conn.Close(ctx)
-
-	var exists bool
-	query := "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
-	err = conn.QueryRow(ctx, query, cfg.Database).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to check database list: %w", err)
-	}
-
-	if !exists {
-		log.InfoContext(ctx, "target database does not exist, creating it", "database", cfg.Database)
-		createSQL := fmt.Sprintf(`CREATE DATABASE "%s"`, strings.ReplaceAll(cfg.Database, `"`, `""`))
-		if _, err := conn.Exec(ctx, createSQL); err != nil {
-			return fmt.Errorf("failed to create database %s: %w", cfg.Database, err)
-		}
-		log.InfoContext(ctx, "successfully created database", "database", cfg.Database)
-	}
-
 	return nil
 }

@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -167,20 +165,20 @@ func (a *App) Close(ctx context.Context) error {
 	return firstErr
 }
 
-func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config) (string, error) {
-	if discovery != nil {
-		return discovery.Self().Key, nil
+func resolveAPIKey(discoveryKey string, cfgInstanceKey string) (string, error) {
+	if discoveryKey != "" {
+		return discoveryKey, nil
 	}
-	if cfg.Discovery.InstanceKey != "" {
-		return cfg.Discovery.InstanceKey, nil
-	}
-	if cfg.Discovery.PublicEndpoint != "" {
-		return sha256Hex(cfg.Discovery.PublicEndpoint), nil
+	if cfgInstanceKey != "" {
+		return cfgInstanceKey, nil
 	}
 	return "", fmt.Errorf("internal API key not configured (SYSTEM_INSTANCE_KEY is empty and discovery is disabled)")
 }
 
-func sha256Hex(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
+func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config) (string, error) {
+	var discoveryKey string
+	if discovery != nil {
+		discoveryKey = discovery.Self().Key
+	}
+	return resolveAPIKey(discoveryKey, cfg.Discovery.InstanceKey)
 }

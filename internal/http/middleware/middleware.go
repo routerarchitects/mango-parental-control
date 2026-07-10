@@ -64,7 +64,7 @@ func NewServiceAuth(
 		}
 		// Wrap the public auth handler to capture and log any authentication errors.
 		publicAuth = func(c fiber.Ctx) error {
-			slog.Info("Authenticating request", "path", c.Path(), "method", c.Method())
+			slog.Debug("Authenticating request", "path", c.Path(), "method", c.Method())
 			err := rawPublicAuth(c)
 			if err != nil {
 				slog.Error("Authentication failed with error", "path", c.Path(), "method", c.Method(), "error", err)
@@ -74,7 +74,7 @@ func NewServiceAuth(
 				slog.Warn("Authentication failed: Unauthorized (no credentials or invalid validation)", "path", c.Path(), "method", c.Method())
 				return nil
 			}
-			slog.Info("Authentication succeeded", "path", c.Path(), "method", c.Method())
+			slog.Debug("Authentication succeeded", "path", c.Path(), "method", c.Method())
 			return nil
 		}
 	}
