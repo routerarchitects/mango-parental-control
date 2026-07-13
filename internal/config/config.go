@@ -19,6 +19,9 @@ type ServerConfig struct {
 	TLS_ROOTCA       string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
 }
 
+// PostgresConfig defines settings for PostgreSQL storage.
+// Defaults for Username and Password are set to standard superuser values for local development fallback,
+// while Database defaults to the dedicated 'mango-parental-control' database.
 type PostgresConfig struct {
 	StorageType string `env:"STORAGE_TYPE" envDefault:"postgresql"`
 	Host        string `env:"STORAGE_TYPE_POSTGRESQL_HOST" envDefault:"localhost"`
