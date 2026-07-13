@@ -13,18 +13,18 @@ import (
 	"github.com/routerarchitects/mango-parental-control/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsystemroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 )
 
 type Dependencies struct {
-	DB                *db.Database
-	ServerLogger      *slog.Logger
-	ServerConfig      config.ServerConfig
-	SubsystemConfig   subsystemroutes.Config
-	PublicAuthConfig  auth.PublicAuthConfig
+	DB *db.Database
+	ServerLogger *slog.Logger
+	ServerConfig config.ServerConfig
+	SubsystemConfig subsystemroutes.Config
+	PublicAuthConfig auth.PublicAuthConfig
 	PrivateAuthConfig auth.InternalAPIKeyConfig
-	TokenValidator    *owsec.SecurityClient
-	AuthEnabled       bool
+	TokenValidator auth.PublicAuthValidator
+	SystemTokenValidator auth.PublicAuthValidator
+	AuthEnabled bool
 }
 
 type Module struct {
@@ -36,10 +36,12 @@ type Module struct {
 // NewModule initializes the HTTP apps, CORS, loggers, auth middlewares, and routes.
 func NewModule(deps Dependencies) (*Module, error) {
 	authMiddleware, err := middleware.NewServiceAuth(
+		deps.ServerLogger,
 		deps.AuthEnabled,
 		deps.PublicAuthConfig,
 		deps.PrivateAuthConfig,
 		deps.TokenValidator,
+		deps.SystemTokenValidator,
 	)
 	if err != nil {
 		return nil, err
@@ -64,6 +66,7 @@ func NewModule(deps Dependencies) (*Module, error) {
 	routes.RegisterPublic(publicApp, routes.Deps{
 		DB:          deps.DB,
 		AuthHandler: authMiddleware.PublicAuth,
+		SystemAuthHandler: authMiddleware.PublicSystemAuth,
 		Subsystem:   deps.SubsystemConfig,
 	})
 

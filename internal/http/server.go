@@ -45,12 +45,15 @@ func (s *Server) Start(ctx context.Context, publicApp *fiber.App, privateApp *fi
 		return nil, apperror.New(apperror.CodeInternal, "public and private HTTP ports must not be identical")
 	}
 
-	// Fallback to internal certificate if public cert is not configured
+	// Resolve public certificate: fall back to internal only when both are empty.
+	// When exactly one is configured, fail startup to prevent silent misconfiguration.
 	pubCrt := s.publicCrt
 	pubKey := s.publicKey
-	if pubCrt == "" || pubKey == "" {
+	if pubCrt == "" && pubKey == "" {
 		pubCrt = s.crt
 		pubKey = s.key
+	} else if pubCrt == "" || pubKey == "" {
+		return nil, apperror.New(apperror.CodeInternal, "RESTAPI_HOST_CERT and RESTAPI_HOST_KEY must be configured together; only one was provided")
 	}
 
 	if pubCrt == "" || pubKey == "" || s.crt == "" || s.key == "" {

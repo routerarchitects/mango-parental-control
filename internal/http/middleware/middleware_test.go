@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"io"
+	"log/slog"
 	"net/http/httptest"
 	"testing"
 
@@ -13,7 +15,8 @@ func TestServiceAuth_AuthDisabled(t *testing.T) {
 		ExpectedAPIKey: "dummy-key",
 	}
 
-	serviceAuth, err := NewServiceAuth(false, auth.PublicAuthConfig{}, privateCfg, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	serviceAuth, err := NewServiceAuth(logger, false, auth.PublicAuthConfig{}, privateCfg, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create ServiceAuth: %v", err)
 	}
@@ -38,7 +41,8 @@ func TestServiceAuth_PrivateAuth(t *testing.T) {
 		ExpectedAPIKey: "secret-internal-api-key",
 	}
 
-	serviceAuth, err := NewServiceAuth(true, auth.PublicAuthConfig{}, privateCfg, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	serviceAuth, err := NewServiceAuth(logger, true, auth.PublicAuthConfig{}, privateCfg, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create ServiceAuth: %v", err)
 	}

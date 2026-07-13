@@ -8,23 +8,22 @@ import (
 )
 
 type Deps struct {
-	DB          *db.Database
+	DB *db.Database
 	AuthHandler fiber.Handler
-	Subsystem   subsysteroutes.Config
+	SystemAuthHandler fiber.Handler
+	Subsystem subsysteroutes.Config
 }
 
 // RegisterPublic configures the public HTTP router paths.
 func RegisterPublic(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)
 
-	// Create authenticated route group
-	group := app.Group("", deps.AuthHandler)
-
-	// Register system diagnostics routes
-	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
+	systemGroup := app.Group("", withAuth(deps.SystemAuthHandler))
+	subsysteroutes.RegisterRoutes(deps.Subsystem, systemGroup)
 
 	h := handlers.NewServiceHandler(deps.DB)
-	registerAPIRoutes(group, h)
+	apiGroup := app.Group("", withAuth(deps.AuthHandler))
+	registerAPIRoutes(apiGroup, h)
 }
 
 // RegisterPrivate configures the private/internal HTTP router paths.
@@ -32,7 +31,7 @@ func RegisterPrivate(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)
 
 	// Create authenticated route group
-	group := app.Group("", deps.AuthHandler)
+	group := app.Group("", withAuth(deps.AuthHandler))
 
 	// Register system diagnostics routes
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
@@ -74,4 +73,13 @@ func registerLivenessRoute(app *fiber.App) {
 	app.Get("/livez", func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
+}
+
+func withAuth(handler fiber.Handler) fiber.Handler {
+	if handler != nil {
+		return handler
+	}
+	return func(c fiber.Ctx) error {
+		return c.Next()
+	}
 }

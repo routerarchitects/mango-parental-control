@@ -104,4 +104,37 @@ func TestServer_Start_ValidationAndFallback(t *testing.T) {
 			t.Fatalf("expected missing internal key error, got: %v", err)
 		}
 	})
+
+	t.Run("Fails when only public cert is configured without key", func(t *testing.T) {
+		srv := NewServer(config.ServerConfig{
+			HTTPPort:       16008,
+			PrivatePort:    17008,
+			PublicTLS_CERT: "/some/public-cert.pem",
+			PublicTLS_KEY:  "",
+			TLS_CERT:       "/missing/internal-cert.pem",
+			TLS_KEY:        "/missing/internal-key.pem",
+		}, logger)
+
+		_, err := srv.Start(context.Background(), fiber.New(), fiber.New())
+		if err == nil || !strings.Contains(err.Error(), "RESTAPI_HOST_CERT and RESTAPI_HOST_KEY must be configured together") {
+			t.Fatalf("expected partial public cert config error, got: %v", err)
+		}
+	})
+
+	t.Run("Fails when only public key is configured without cert", func(t *testing.T) {
+		srv := NewServer(config.ServerConfig{
+			HTTPPort:       16008,
+			PrivatePort:    17008,
+			PublicTLS_CERT: "",
+			PublicTLS_KEY:  "/some/public-key.pem",
+			TLS_CERT:       "/missing/internal-cert.pem",
+			TLS_KEY:        "/missing/internal-key.pem",
+		}, logger)
+
+		_, err := srv.Start(context.Background(), fiber.New(), fiber.New())
+		if err == nil || !strings.Contains(err.Error(), "RESTAPI_HOST_CERT and RESTAPI_HOST_KEY must be configured together") {
+			t.Fatalf("expected partial public cert config error, got: %v", err)
+		}
+	})
 }
+

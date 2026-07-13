@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,6 +38,21 @@ func (m *mockPublicValidator) ValidateAPIKey(ctx context.Context, apiKey string)
 	return fmt.Errorf("invalid api key")
 }
 
+type mockSystemValidator struct {
+	expectedToken string
+}
+
+func (m *mockSystemValidator) ValidateToken(ctx context.Context, token string) error {
+	if token == m.expectedToken {
+		return nil
+	}
+	return fmt.Errorf("invalid token")
+}
+
+func (m *mockSystemValidator) ValidateAPIKey(ctx context.Context, apiKey string) error {
+	return fmt.Errorf("invalid api key")
+}
+
 func TestParentalControlAPI(t *testing.T) {
 	dbConn := initTestDB(t)
 	if dbConn == nil {
@@ -59,6 +76,7 @@ func TestParentalControlAPI(t *testing.T) {
 	routes.RegisterPublic(app, routes.Deps{
 		DB:          dbConn,
 		AuthHandler: mockAuthPublic,
+		SystemAuthHandler: mockAuthPublic,
 		Subsystem:   subsysteroutes.Config{},
 	})
 
@@ -663,6 +681,7 @@ func TestSubscriberWorkflow(t *testing.T) {
 	routes.RegisterPublic(app, routes.Deps{
 		DB:          dbConn,
 		AuthHandler: mockAuth,
+		SystemAuthHandler: mockAuth,
 		Subsystem:   subsysteroutes.Config{},
 	})
 
@@ -789,13 +808,17 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		expectedToken:  "expected-token",
 		expectedAPIKey: "expected-key",
 	}
+	systemValidator := &mockSystemValidator{
+		expectedToken: "expected-admin-token",
+	}
 	publicCfg := auth.PublicAuthConfig{
 		Validator: mockVal,
 	}
 	privateCfg := auth.InternalAPIKeyConfig{
 		ExpectedAPIKey: "expected-key",
 	}
-	serviceAuth, err := middleware.NewServiceAuth(true, publicCfg, privateCfg, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	serviceAuth, err := middleware.NewServiceAuth(logger, true, publicCfg, privateCfg, nil, systemValidator)
 	if err != nil {
 		t.Fatalf("failed to initialize service auth: %v", err)
 	}
@@ -803,6 +826,7 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 	routes.RegisterPublic(app, routes.Deps{
 		DB:          nil,
 		AuthHandler: serviceAuth.PublicAuth,
+		SystemAuthHandler: serviceAuth.PublicSystemAuth,
 		Subsystem:   subsysteroutes.Config{},
 	})
 
@@ -817,9 +841,21 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("authorized access with a valid bearer token -> must pass auth", func(t *testing.T) {
+	t.Run("subscriber bearer token is rejected for public system routes", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
 		req.Header.Set("Authorization", "Bearer expected-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("Test request failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("non-subscriber bearer token is allowed for public system routes", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
+		req.Header.Set("Authorization", "Bearer expected-admin-token")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("Test request failed: %v", err)
@@ -829,15 +865,15 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("intended controller-UI caller path using a valid X-API-KEY -> must pass auth", func(t *testing.T) {
+	t.Run("public system routes do not accept API key auth", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
 		req.Header.Set("X-API-KEY", "expected-key")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("Test request failed: %v", err)
 		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
 		}
 	})
 }
