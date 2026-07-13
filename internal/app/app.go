@@ -114,15 +114,15 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 
 	// 6. Assemble Fiber HTTP apps module
 	module, err := apphttp.NewModule(apphttp.Dependencies{
-		DB:                database,
-		ServerLogger:      logger.Subsystem("server"),
-		ServerConfig:      cfg.Server,
-		SubsystemConfig:   cfg.Subsystem,
-		PublicAuthConfig:  auth.PublicAuthConfig{},
-		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: expectedKey},
-		TokenValidator:    tokenValidator,
+		DB:                   database,
+		ServerLogger:         logger.Subsystem("server"),
+		ServerConfig:         cfg.Server,
+		SubsystemConfig:      cfg.Subsystem,
+		PublicAuthConfig:     auth.PublicAuthConfig{},
+		PrivateAuthConfig:    auth.InternalAPIKeyConfig{ExpectedAPIKey: expectedKey},
+		TokenValidator:       tokenValidator,
 		SystemTokenValidator: systemTokenValidator,
-		AuthEnabled:       cfg.Auth.Enabled,
+		AuthEnabled:          cfg.Auth.Enabled,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP module: %w", err)

@@ -74,10 +74,10 @@ func TestParentalControlAPI(t *testing.T) {
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:          dbConn,
-		AuthHandler: mockAuthPublic,
+		DB:                dbConn,
+		AuthHandler:       mockAuthPublic,
 		SystemAuthHandler: mockAuthPublic,
-		Subsystem:   subsysteroutes.Config{},
+		Subsystem:         subsysteroutes.Config{},
 	})
 
 	privateApp := fiber.New()
@@ -679,10 +679,10 @@ func TestSubscriberWorkflow(t *testing.T) {
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:          dbConn,
-		AuthHandler: mockAuth,
+		DB:                dbConn,
+		AuthHandler:       mockAuth,
 		SystemAuthHandler: mockAuth,
-		Subsystem:   subsysteroutes.Config{},
+		Subsystem:         subsysteroutes.Config{},
 	})
 
 	vars := map[string]string{
@@ -824,10 +824,10 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:          nil,
-		AuthHandler: serviceAuth.PublicAuth,
+		DB:                nil,
+		AuthHandler:       serviceAuth.PublicAuth,
 		SystemAuthHandler: serviceAuth.PublicSystemAuth,
-		Subsystem:   subsysteroutes.Config{},
+		Subsystem:         subsysteroutes.Config{},
 	})
 
 	t.Run("unauthorized access with no credentials -> expect 401 Unauthorized", func(t *testing.T) {

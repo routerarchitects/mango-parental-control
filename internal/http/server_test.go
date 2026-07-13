@@ -137,4 +137,3 @@ func TestServer_Start_ValidationAndFallback(t *testing.T) {
 		}
 	})
 }
-

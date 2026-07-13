@@ -8,10 +8,10 @@ import (
 )
 
 type Deps struct {
-	DB *db.Database
-	AuthHandler fiber.Handler
+	DB                *db.Database
+	AuthHandler       fiber.Handler
 	SystemAuthHandler fiber.Handler
-	Subsystem subsysteroutes.Config
+	Subsystem         subsysteroutes.Config
 }
 
 // RegisterPublic configures the public HTTP router paths.
