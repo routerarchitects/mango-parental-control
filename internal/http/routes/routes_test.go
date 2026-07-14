@@ -38,21 +38,6 @@ func (m *mockPublicValidator) ValidateAPIKey(ctx context.Context, apiKey string)
 	return fmt.Errorf("invalid api key")
 }
 
-type mockSystemValidator struct {
-	expectedToken string
-}
-
-func (m *mockSystemValidator) ValidateToken(ctx context.Context, token string) error {
-	if token == m.expectedToken {
-		return nil
-	}
-	return fmt.Errorf("invalid token")
-}
-
-func (m *mockSystemValidator) ValidateAPIKey(ctx context.Context, apiKey string) error {
-	return fmt.Errorf("invalid api key")
-}
-
 func TestParentalControlAPI(t *testing.T) {
 	dbConn := initTestDB(t)
 	if dbConn == nil {
@@ -74,10 +59,9 @@ func TestParentalControlAPI(t *testing.T) {
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:                dbConn,
-		AuthHandler:       mockAuthPublic,
-		SystemAuthHandler: mockAuthPublic,
-		Subsystem:         subsysteroutes.Config{},
+		DB:          dbConn,
+		AuthHandler: mockAuthPublic,
+		Subsystem:   subsysteroutes.Config{},
 	})
 
 	privateApp := fiber.New()
@@ -679,10 +663,9 @@ func TestSubscriberWorkflow(t *testing.T) {
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:                dbConn,
-		AuthHandler:       mockAuth,
-		SystemAuthHandler: mockAuth,
-		Subsystem:         subsysteroutes.Config{},
+		DB:          dbConn,
+		AuthHandler: mockAuth,
+		Subsystem:   subsysteroutes.Config{},
 	})
 
 	vars := map[string]string{
@@ -808,9 +791,6 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		expectedToken:  "expected-token",
 		expectedAPIKey: "expected-key",
 	}
-	systemValidator := &mockSystemValidator{
-		expectedToken: "expected-admin-token",
-	}
 	publicCfg := auth.PublicAuthConfig{
 		Validator: mockVal,
 	}
@@ -818,16 +798,15 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		ExpectedAPIKey: "expected-key",
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	serviceAuth, err := middleware.NewServiceAuth(logger, true, publicCfg, privateCfg, nil, systemValidator)
+	serviceAuth, err := middleware.NewServiceAuth(logger, true, publicCfg, privateCfg, mockVal)
 	if err != nil {
 		t.Fatalf("failed to initialize service auth: %v", err)
 	}
 
 	routes.RegisterPublic(app, routes.Deps{
-		DB:                nil,
-		AuthHandler:       serviceAuth.PublicAuth,
-		SystemAuthHandler: serviceAuth.PublicSystemAuth,
-		Subsystem:         subsysteroutes.Config{},
+		DB:          nil,
+		AuthHandler: serviceAuth.PublicAuth,
+		Subsystem:   subsysteroutes.Config{},
 	})
 
 	t.Run("unauthorized access with no credentials -> expect 401 Unauthorized", func(t *testing.T) {
@@ -841,21 +820,9 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("subscriber bearer token is rejected for public system routes", func(t *testing.T) {
+	t.Run("authorized bearer token is allowed for public system routes", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
 		req.Header.Set("Authorization", "Bearer expected-token")
-		resp, err := app.Test(req)
-		if err != nil {
-			t.Fatalf("Test request failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("non-subscriber bearer token is allowed for public system routes", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
-		req.Header.Set("Authorization", "Bearer expected-admin-token")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("Test request failed: %v", err)
@@ -865,15 +832,15 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("public system routes do not accept API key auth", func(t *testing.T) {
+	t.Run("authorized API key is allowed for public system routes", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/system?command=info", nil)
 		req.Header.Set("X-API-KEY", "expected-key")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("Test request failed: %v", err)
 		}
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
 		}
 	})
 }

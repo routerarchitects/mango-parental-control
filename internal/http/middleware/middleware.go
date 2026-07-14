@@ -25,9 +25,8 @@ func RegisterRequestLog(app *fiber.App, logger *slog.Logger) {
 
 // ServiceAuth manages public and private authentication middleware state.
 type ServiceAuth struct {
-	PublicAuth       fiber.Handler
-	PublicSystemAuth fiber.Handler
-	PrivateAuth      fiber.Handler
+	PublicAuth  fiber.Handler
+	PrivateAuth fiber.Handler
 }
 
 // NewServiceAuth creates and configures public and private auth handlers.
@@ -36,29 +35,23 @@ func NewServiceAuth(
 	authEnabled bool,
 	publicCfg auth.PublicAuthConfig,
 	privateCfg auth.InternalAPIKeyConfig,
-	publicValidator auth.PublicAuthValidator,
-	systemValidator auth.PublicAuthValidator,
+	validator auth.PublicAuthValidator,
 ) (*ServiceAuth, error) {
 	// Configure public auth handler (bypassed if AUTH_ENABLED=false)
 	var publicAuth fiber.Handler
-	var publicSystemAuth fiber.Handler
 	if !authEnabled {
 		publicAuth = func(c fiber.Ctx) error {
 			return c.Next()
 		}
-		publicSystemAuth = publicAuth
 	} else {
 		if publicCfg.Validator == nil {
-			publicCfg.Validator = publicValidator
+			publicCfg.Validator = validator
 		}
 		if publicCfg.Validator == nil {
-			unauthorized := func(c fiber.Ctx) error {
+			publicAuth = func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusUnauthorized)
 			}
-			publicAuth = unauthorized
-			publicSystemAuth = unauthorized
 		} else {
-			basePublicCfg := publicCfg
 			publicCfg = withValidationLogging(logger, "Public auth validation rejected", publicCfg)
 
 			rawPublicAuth, err := auth.RequirePublicAuth(publicCfg)
@@ -66,18 +59,6 @@ func NewServiceAuth(
 				return nil, err
 			}
 			publicAuth = withAuthLogging(logger, rawPublicAuth)
-
-			publicSystemCfg := basePublicCfg
-			if systemValidator != nil {
-				publicSystemCfg.Validator = systemValidator
-			}
-			publicSystemCfg = withValidationLogging(logger, "Public system auth validation rejected", publicSystemCfg)
-
-			rawPublicSystemAuth, err := auth.RequirePublicAuth(publicSystemCfg)
-			if err != nil {
-				return nil, err
-			}
-			publicSystemAuth = withAuthLogging(logger, rawPublicSystemAuth)
 		}
 	}
 
@@ -88,9 +69,8 @@ func NewServiceAuth(
 	}
 
 	return &ServiceAuth{
-		PublicAuth:       publicAuth,
-		PublicSystemAuth: publicSystemAuth,
-		PrivateAuth:      privateAuth,
+		PublicAuth:  publicAuth,
+		PrivateAuth: privateAuth,
 	}, nil
 }
 

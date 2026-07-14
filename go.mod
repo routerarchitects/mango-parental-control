@@ -10,7 +10,7 @@ require (
 	github.com/routerarchitects/ow-common-mods/fiber/middleware v0.1.1
 	github.com/routerarchitects/ow-common-mods/fiber/system-routes v0.1.0
 	github.com/routerarchitects/ow-common-mods/servicediscovery v0.2.0
-	github.com/routerarchitects/ow-common-mods/servicerpc v0.2.0
+	github.com/routerarchitects/ow-common-mods/servicerpc v0.3.0
 	github.com/routerarchitects/ra-common-mods/apperror v0.2.0
 	github.com/routerarchitects/ra-common-mods/kafka v0.1.0
 	github.com/routerarchitects/ra-common-mods/logger v0.1.0

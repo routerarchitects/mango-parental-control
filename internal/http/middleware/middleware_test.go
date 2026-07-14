@@ -16,7 +16,7 @@ func TestServiceAuth_AuthDisabled(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	serviceAuth, err := NewServiceAuth(logger, false, auth.PublicAuthConfig{}, privateCfg, nil, nil)
+	serviceAuth, err := NewServiceAuth(logger, false, auth.PublicAuthConfig{}, privateCfg, nil)
 	if err != nil {
 		t.Fatalf("failed to create ServiceAuth: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestServiceAuth_PrivateAuth(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	serviceAuth, err := NewServiceAuth(logger, true, auth.PublicAuthConfig{}, privateCfg, nil, nil)
+	serviceAuth, err := NewServiceAuth(logger, true, auth.PublicAuthConfig{}, privateCfg, nil)
 	if err != nil {
 		t.Fatalf("failed to create ServiceAuth: %v", err)
 	}

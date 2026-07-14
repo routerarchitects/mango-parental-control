@@ -16,15 +16,14 @@ import (
 )
 
 type Dependencies struct {
-	DB                   *db.Database
-	ServerLogger         *slog.Logger
-	ServerConfig         config.ServerConfig
-	SubsystemConfig      subsystemroutes.Config
-	PublicAuthConfig     auth.PublicAuthConfig
-	PrivateAuthConfig    auth.InternalAPIKeyConfig
-	TokenValidator       auth.PublicAuthValidator
-	SystemTokenValidator auth.PublicAuthValidator
-	AuthEnabled          bool
+	DB                *db.Database
+	ServerLogger      *slog.Logger
+	ServerConfig      config.ServerConfig
+	SubsystemConfig   subsystemroutes.Config
+	PublicAuthConfig  auth.PublicAuthConfig
+	PrivateAuthConfig auth.InternalAPIKeyConfig
+	TokenValidator    auth.PublicAuthValidator
+	AuthEnabled       bool
 }
 
 type Module struct {
@@ -41,7 +40,6 @@ func NewModule(deps Dependencies) (*Module, error) {
 		deps.PublicAuthConfig,
 		deps.PrivateAuthConfig,
 		deps.TokenValidator,
-		deps.SystemTokenValidator,
 	)
 	if err != nil {
 		return nil, err
@@ -64,10 +62,9 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.Deps{
-		DB:                deps.DB,
-		AuthHandler:       authMiddleware.PublicAuth,
-		SystemAuthHandler: authMiddleware.PublicSystemAuth,
-		Subsystem:         deps.SubsystemConfig,
+		DB:          deps.DB,
+		AuthHandler: authMiddleware.PublicAuth,
+		Subsystem:   deps.SubsystemConfig,
 	})
 
 	// Configure private routes

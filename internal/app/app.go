@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/routerarchitects/mango-parental-control/internal/config"
@@ -15,9 +12,7 @@ import (
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
 	"github.com/routerarchitects/ow-common-mods/servicerpc"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/common"
 	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
-	"github.com/routerarchitects/ra-common-mods/apperror"
 	"github.com/routerarchitects/ra-common-mods/logger"
 )
 
@@ -30,14 +25,9 @@ type App struct {
 	httpMod   *apphttp.Module
 }
 
-// New initializes all dependencies and builds the App.
+// New sets up components and constructs a wired application instance.
 func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, error) {
-	// Validate authentication configuration dependencies
-	if cfg.Auth.Enabled && (!cfg.Discovery.Enabled || !cfg.RPC.Enabled) {
-		return nil, fmt.Errorf("invalid configuration: public authentication (AUTH_ENABLED) requires both service discovery (DISCOVERY_ENABLED) and service RPC (SERVICE_RPC_ENABLED) to be enabled")
-	}
-
-	// 1. Establish database connection pool
+	// 1. Establish Database Connection (conditional migration run)
 	database, err := db.Connect(ctx, cfg.Database, logger.Subsystem("db"))
 	if err != nil {
 		return nil, fmt.Errorf("database connection failure: %w", err)
@@ -70,7 +60,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 
 	// 4. Initialize RPC client factory (conditional)
 	var tokenValidator *owsec.SecurityClient
-	var systemTokenValidator *regularTokenValidator
 	if cfg.RPC.Enabled && cfg.Discovery.Enabled {
 		rpcFactory, err := servicerpc.NewServiceRpc(
 			discovery,
@@ -89,19 +78,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		if err != nil {
 			return nil, fmt.Errorf("failed to create security auth client: %w", err)
 		}
-
-		// ServiceRpc currently exposes only SecurityClient, whose ValidateToken path
-		// accepts subscriber tokens too. The public system route needs validateToken-only auth.
-		rpcBase, err := common.NewServiceRPCBase(
-			discovery,
-			cfg.Server.TLS_ROOTCA,
-			cfg.Discovery.PublicEndpoint,
-			logger.Subsystem("service-rpc"),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create service RPC base: %w", err)
-		}
-		systemTokenValidator = &regularTokenValidator{rpc: rpcBase}
 	} else {
 		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
 	}
@@ -114,15 +90,14 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 
 	// 6. Assemble Fiber HTTP apps module
 	module, err := apphttp.NewModule(apphttp.Dependencies{
-		DB:                   database,
-		ServerLogger:         logger.Subsystem("server"),
-		ServerConfig:         cfg.Server,
-		SubsystemConfig:      cfg.Subsystem,
-		PublicAuthConfig:     auth.PublicAuthConfig{},
-		PrivateAuthConfig:    auth.InternalAPIKeyConfig{ExpectedAPIKey: expectedKey},
-		TokenValidator:       tokenValidator,
-		SystemTokenValidator: systemTokenValidator,
-		AuthEnabled:          cfg.Auth.Enabled,
+		DB:                database,
+		ServerLogger:      logger.Subsystem("server"),
+		ServerConfig:      cfg.Server,
+		SubsystemConfig:   cfg.Subsystem,
+		PublicAuthConfig:  auth.PublicAuthConfig{},
+		PrivateAuthConfig: auth.InternalAPIKeyConfig{ExpectedAPIKey: expectedKey},
+		TokenValidator:    tokenValidator,
+		AuthEnabled:       cfg.Auth.Enabled,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP module: %w", err)
@@ -201,43 +176,4 @@ func getExpectedAPIKey(discovery *servicediscovery.Discovery, cfg *config.Config
 		discoveryKey = discovery.Self().Key
 	}
 	return resolveAPIKey(discoveryKey, cfg.Discovery.InstanceKey)
-}
-
-type regularTokenValidator struct {
-	rpc *common.ServiceRPCBase
-}
-
-func (v *regularTokenValidator) ValidateToken(ctx context.Context, rawToken string) error {
-	token := strings.TrimSpace(rawToken)
-	if token == "" {
-		return apperror.New(apperror.CodeUnauthorized, "unauthorized")
-	}
-
-	resp, err := v.rpc.Send(ctx, http.MethodGet, "/api/v1/validateToken?token="+url.QueryEscape(token), nil, "owsec")
-	if resp != nil {
-		defer resp.Close()
-	}
-
-	if err != nil {
-		v.rpc.Logger().With("service", "owsec", "operation", "validateToken").Error("validation request failed")
-		return err
-	}
-
-	if resp == nil {
-		return apperror.New(apperror.CodeInternal, "token validation response is empty")
-	}
-
-	if resp.StatusCode() == http.StatusOK {
-		return nil
-	}
-
-	if resp.StatusCode() == http.StatusUnauthorized || resp.StatusCode() == http.StatusForbidden || resp.StatusCode() == http.StatusNotFound {
-		return apperror.New(apperror.CodeUnauthorized, "unauthorized")
-	}
-
-	return apperror.New(apperror.CodeInternal, fmt.Sprintf("token validation failed (status=%d)", resp.StatusCode()))
-}
-
-func (v *regularTokenValidator) ValidateAPIKey(ctx context.Context, apiKey string) error {
-	return apperror.New(apperror.CodeUnauthorized, "unauthorized")
 }

@@ -8,22 +8,23 @@ import (
 )
 
 type Deps struct {
-	DB                *db.Database
-	AuthHandler       fiber.Handler
-	SystemAuthHandler fiber.Handler
-	Subsystem         subsysteroutes.Config
+	DB          *db.Database
+	AuthHandler fiber.Handler
+	Subsystem   subsysteroutes.Config
 }
 
 // RegisterPublic configures the public HTTP router paths.
 func RegisterPublic(app *fiber.App, deps Deps) {
 	registerLivenessRoute(app)
 
-	systemGroup := app.Group("", withAuth(deps.SystemAuthHandler))
-	subsysteroutes.RegisterRoutes(deps.Subsystem, systemGroup)
+	// Create authenticated route group
+	group := app.Group("", withAuth(deps.AuthHandler))
+
+	// Register system diagnostics routes
+	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
 
 	h := handlers.NewServiceHandler(deps.DB)
-	apiGroup := app.Group("", withAuth(deps.AuthHandler))
-	registerAPIRoutes(apiGroup, h)
+	registerAPIRoutes(group, h)
 }
 
 // RegisterPrivate configures the private/internal HTTP router paths.
