@@ -947,6 +947,7 @@ components:
         type: string
     ConfigRawResponse:
       type: object
+      required: [config-raw]
       description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response (either as `null` for no-op changes, an empty array `[]` when policy is cleared, or a populated array containing the full parental-control-owned snapshot). Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
       properties:
         config-raw:
