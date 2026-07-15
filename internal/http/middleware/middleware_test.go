@@ -42,7 +42,7 @@ func TestServiceAuth_PrivateAuth(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	serviceAuth, err := NewServiceAuth(logger, true, auth.PublicAuthConfig{}, privateCfg, nil)
+	serviceAuth, err := NewServiceAuth(logger, false, auth.PublicAuthConfig{}, privateCfg, nil)
 	if err != nil {
 		t.Fatalf("failed to create ServiceAuth: %v", err)
 	}
@@ -122,5 +122,16 @@ func TestRegisterPublicCORS(t *testing.T) {
 	corsHeader := resp.Header.Get("Access-Control-Allow-Origin")
 	if corsHeader != "*" {
 		t.Fatalf("expected Access-Control-Allow-Origin header to be '*', got: %s", corsHeader)
+	}
+}
+
+func TestServiceAuth_PublicAuthMissingValidator(t *testing.T) {
+	privateCfg := auth.InternalAPIKeyConfig{
+		ExpectedAPIKey: "dummy-key",
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	_, err := NewServiceAuth(logger, true, auth.PublicAuthConfig{}, privateCfg, nil)
+	if err == nil {
+		t.Fatal("expected error when auth is enabled but no validator is available, got nil")
 	}
 }

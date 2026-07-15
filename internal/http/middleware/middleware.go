@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
@@ -48,9 +49,7 @@ func NewServiceAuth(
 			publicCfg.Validator = validator
 		}
 		if publicCfg.Validator == nil {
-			publicAuth = func(c fiber.Ctx) error {
-				return c.SendStatus(fiber.StatusUnauthorized)
-			}
+			return nil, fmt.Errorf("public authentication is enabled but no token validator is available")
 		} else {
 			publicCfg = withValidationLogging(logger, "Public auth validation rejected", publicCfg)
 
