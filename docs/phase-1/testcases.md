@@ -168,7 +168,7 @@ Notes:
 | TC-PAUSE-CLIENT-013 | Stop date not equal to the next calendar date after `start_date` is rejected by the supported request shape | `400 Bad Request` |
 | TC-PAUSE-CLIENT-014 | Pause client that is already covered by active group/schedule policy | `200 OK`; client-access pause-state created or replaced; returned `config-raw` snapshot preserves existing group/schedule-derived enforcement and the client remains effectively blocked |
 | TC-UNPAUSE-CLIENT-001 | Remove existing pause-state successfully while other active pause-state rows remain | `200 OK`; pause-state removed; returns updated `config-raw` snapshot |
-| TC-UNPAUSE-CLIENT-002 | Remove existing pause-state that is the last active client-access policy | `200 OK`; pause-state removed; returns `"config-raw": []` |
+| TC-UNPAUSE-CLIENT-002 | Remove existing pause-state when it is the final active parental-control policy across both client-access and group/schedule models | `200 OK`; pause-state removed; returns `"config-raw": []` |
 | TC-UNPAUSE-CLIENT-003 | Remove pause-state when target client is already absent | `200 OK`; no-op; returns `"config-raw": null` |
 | TC-UNPAUSE-CLIENT-004 | Unpause request also clears expired stored rows before rendering effective snapshot | `200 OK`; expired rows removed; returned `config-raw` reflects only remaining active pause-state rows or `[]` / `null` as applicable |
 | TC-UNPAUSE-CLIENT-005 | Unpause client-access state for client still covered by active group/schedule policy | `200 OK`; client-access pause-state removed; returned `config-raw` snapshot preserves remaining group/schedule-derived enforcement and the client remains effectively blocked |
