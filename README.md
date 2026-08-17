@@ -1,6 +1,27 @@
-# Mango Cloud Go Foundation Service
+# Mango Cloud Parental Control Service
 
-A standardized, production-ready microservice foundation skeleton for the Mango Cloud (OpenWiFi) environment. This service provides a pre-configured architecture featuring dual-port HTTP server separation, PostgreSQL integration, automated schema migrations, and Service Discovery out-of-the-box.
+The Mango Cloud Parental Control Service is part of
+[Mango Cloud](https://www.mangowifi.cloud/), Router Architects’
+open-source cloud controller and managed connectivity platform for
+ISPs, MSPs, and Edge AI/IoT service providers.
+
+This service extends Mango Cloud’s residential Wi-Fi capabilities
+with parental-control and subscriber policy management workflows.
+
+## Role in Mango Cloud
+
+The service integrates with the Mango Cloud platform and is designed
+to support parental-control workflows for managed residential Wi-Fi
+environments.
+
+Mango Cloud is an OpenLAN/OpenWiFi-aligned platform for provisioning,
+monitoring, subscriber management, and connectivity operations across
+access points, gateways, switches, and CPE.
+
+- [Mango Cloud](https://www.mangowifi.cloud/)
+- [Mango Cloud Deployment](https://github.com/routerarchitects/mango-cloud-deployment)
+- [Router Architects](https://www.routerarchitects.com/)
+
 
 ---
 
