@@ -15,6 +15,13 @@ type Group struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// GroupWithDeviceCount embeds Group and adds DeviceCount for the ListGroups response.
+// Used only for GET /groups to avoid polluting write response types with device_count.
+type GroupWithDeviceCount struct {
+	Group
+	DeviceCount int `json:"device_count"`
+}
+
 // GroupRequest payload for group write operations (POST/PUT)
 type GroupRequest struct {
 	Name        string  `json:"name"`

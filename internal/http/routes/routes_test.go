@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/routerarchitects/mango-parental-control/internal/http/middleware"
 	"github.com/routerarchitects/mango-parental-control/internal/http/routes"
+	"github.com/routerarchitects/mango-parental-control/internal/models"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
@@ -189,10 +190,45 @@ func TestParentalControlAPI(t *testing.T) {
 		},
 		{
 			ID:             "TC-GET-GROUP-001",
-			Desc:           "Get group details successfully",
+			Desc:           "Get group details successfully - verify no device_count",
 			Method:         http.MethodGet,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}",
 			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var raw map[string]any
+				if err := json.Unmarshal(body, &raw); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				if _, ok := raw["device_count"]; ok {
+					t.Errorf("GET /groups/{id} must not contain device_count, got: %v", raw["device_count"])
+				}
+			},
+		},
+		{
+			ID:             "TC-LIST-GROUPS-001",
+			Desc:           "List groups returns device_count: 0 when no devices are assigned",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID1"] {
+						found = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected group %s device_count 0, got %d", vars["groupID1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID1"])
+				}
+			},
 		},
 		{
 			ID:     "TC-GET-GROUP-PRIVATE-001",
@@ -233,6 +269,32 @@ func TestParentalControlAPI(t *testing.T) {
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_mac":"{macAddress1}"}`,
 			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-LIST-GROUPS-002",
+			Desc:           "List groups returns device_count: 1 after adding 1 device",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID1"] {
+						found = true
+						if g.DeviceCount != 1 {
+							t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID1"])
+				}
+			},
 		},
 		{
 			ID:             "TC-CREATE-SCH-001",
@@ -306,11 +368,63 @@ func TestParentalControlAPI(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
+			ID:             "TC-LIST-GROUPS-003",
+			Desc:           "List groups returns device_count: 2 after adding second device",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID1"] {
+						found = true
+						if g.DeviceCount != 2 {
+							t.Errorf("expected group %s device_count 2, got %d", vars["groupID1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID1"])
+				}
+			},
+		},
+		{
 			ID:             "TC-REMOVE-DEVICE-002",
 			Desc:           "Remove device successfully - updates config-raw",
 			Method:         http.MethodDelete,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices/{macAddress1}",
 			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-LIST-GROUPS-004",
+			Desc:           "List groups returns device_count: 1 after removing a device",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID1"] {
+						found = true
+						if g.DeviceCount != 1 {
+							t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID1"])
+				}
+			},
 		},
 		{
 			ID:             "TC-UNLINK-SCH-001",
@@ -1432,6 +1546,32 @@ func TestSubscriberWorkflow(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
+			ID:             "WF-TC-LIST-GROUP-003-DEVCOUNT",
+			Desc:           "Verify group list has device_count: 1 after device add",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID"] {
+						found = true
+						if g.DeviceCount != 1 {
+							t.Errorf("expected group %s device_count 1, got %d", vars["groupID"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID"])
+				}
+			},
+		},
+		{
 			ID:             "WF-TC-CREATE-SCH-004",
 			Desc:           "Create Schedule",
 			Method:         http.MethodPost,
@@ -1499,6 +1639,32 @@ func TestSubscriberWorkflow(t *testing.T) {
 			Method:         http.MethodDelete,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID}/devices/{macA}",
 			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "WF-TC-LIST-GROUP-008-DEVCOUNT",
+			Desc:           "Verify group list has device_count: 0 after device remove",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupID"] {
+						found = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected group %s device_count 0, got %d", vars["groupID"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupID"])
+				}
+			},
 		},
 		{
 			ID:             "WF-TC-DELETE-GROUP-009",
@@ -1570,4 +1736,438 @@ func TestPublicSystemRoutesAuth(t *testing.T) {
 			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestGroupDeviceCount(t *testing.T) {
+	dbConn := initTestDB(t)
+	if dbConn == nil {
+		return
+	}
+	defer dbConn.Close()
+
+	app := fiber.New()
+	mockAuth := func(c fiber.Ctx) error {
+		return c.Next()
+	}
+
+	routes.RegisterPublic(app, routes.Deps{
+		DB:          dbConn,
+		AuthHandler: mockAuth,
+		Subsystem:   subsysteroutes.Config{},
+	})
+
+	subA := uuid.New().String()
+	subB := uuid.New().String()
+	macA1 := "00:11:22:33:44:01"
+	macA2 := "00:11:22:33:44:02"
+	macA3 := "00:11:22:33:44:03"
+	macB1 := "00:11:22:33:44:B1"
+
+	vars := map[string]string{
+		"subA":  subA,
+		"subB":  subB,
+		"macA1": macA1,
+		"macA2": macA2,
+		"macA3": macA3,
+		"macB1": macB1,
+	}
+
+	testCases := []apiTestCase{
+		// 1. Create Group A1 for Subscriber A -> verify POST /groups response does NOT contain device_count
+		{
+			ID:             "TC-DEVCNT-001-CREATE-A1",
+			Desc:           "Create Group A1 - verify write response has no device_count",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			RequestBody:    `{"name":"Group-A1"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var raw map[string]any
+				if err := json.Unmarshal(body, &raw); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				if _, ok := raw["device_count"]; ok {
+					t.Errorf("POST /groups response must NOT contain device_count, got: %v", raw["device_count"])
+				}
+				var created struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(body, &created); err != nil || created.ID == "" {
+					t.Fatalf("failed to unmarshal created group ID: %v", err)
+				}
+				vars["groupA1"] = created.ID
+			},
+		},
+		// 2. Verify GET /groups/{id} does NOT contain device_count
+		{
+			ID:             "TC-DEVCNT-002-GET-SINGLE-GROUP",
+			Desc:           "Get single group - verify response has no device_count",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var raw map[string]any
+				if err := json.Unmarshal(body, &raw); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				if _, ok := raw["device_count"]; ok {
+					t.Errorf("GET /groups/{id} response must NOT contain device_count, got: %v", raw["device_count"])
+				}
+			},
+		},
+		// 3. Verify PUT /groups/{id} does NOT contain device_count
+		{
+			ID:             "TC-DEVCNT-003-PUT-GROUP",
+			Desc:           "Update group - verify response has no device_count",
+			Method:         http.MethodPut,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}",
+			RequestBody:    `{"name":"Group-A1-Updated"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var raw map[string]any
+				if err := json.Unmarshal(body, &raw); err != nil {
+					t.Fatalf("failed to unmarshal JSON: %v", err)
+				}
+				if _, ok := raw["device_count"]; ok {
+					t.Errorf("PUT /groups/{id} response must NOT contain device_count, got: %v", raw["device_count"])
+				}
+			},
+		},
+		// 4. List groups for Subscriber A -> 0 devices
+		{
+			ID:             "TC-DEVCNT-004-LIST-ZERO-DEVICES",
+			Desc:           "Group with 0 devices returns device_count: 0",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						found = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected group %s device_count: 0, got %d", vars["groupA1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+			},
+		},
+		// 5. Add 1st device to Group A1
+		{
+			ID:             "TC-DEVCNT-005-ADD-FIRST-DEVICE",
+			Desc:           "Add first device to Group A1",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
+			RequestBody:    `{"client_mac":"{macA1}"}`,
+			ExpectedStatus: http.StatusOK,
+		},
+		// 6. List groups for Subscriber A -> 1 device
+		{
+			ID:             "TC-DEVCNT-006-LIST-ONE-DEVICE",
+			Desc:           "Group with 1 device returns device_count: 1",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						found = true
+						if g.DeviceCount != 1 {
+							t.Errorf("expected group %s device_count: 1, got %d", vars["groupA1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+			},
+		},
+		// 7. Add 2nd device to Group A1
+		{
+			ID:             "TC-DEVCNT-007-ADD-SECOND-DEVICE",
+			Desc:           "Add second device to Group A1",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
+			RequestBody:    `{"client_mac":"{macA2}"}`,
+			ExpectedStatus: http.StatusOK,
+		},
+		// 8. Add 3rd device to Group A1
+		{
+			ID:             "TC-DEVCNT-008-ADD-THIRD-DEVICE",
+			Desc:           "Add third device to Group A1",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
+			RequestBody:    `{"client_mac":"{macA3}"}`,
+			ExpectedStatus: http.StatusOK,
+		},
+		// 9. List groups for Subscriber A -> 3 devices
+		{
+			ID:             "TC-DEVCNT-009-LIST-MULTIPLE-DEVICES",
+			Desc:           "Group with multiple devices returns device_count: 3",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						found = true
+						if g.DeviceCount != 3 {
+							t.Errorf("expected group %s device_count: 3, got %d", vars["groupA1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+			},
+		},
+		// 10. Remove 1 device from Group A1 -> decrements to 2
+		{
+			ID:             "TC-DEVCNT-010-REMOVE-DEVICE",
+			Desc:           "Remove device from Group A1",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices/{macA1}",
+			ExpectedStatus: http.StatusOK,
+		},
+		// 11. List groups for Subscriber A -> 2 devices
+		{
+			ID:             "TC-DEVCNT-011-LIST-AFTER-REMOVAL",
+			Desc:           "Removing device decrements device_count to 2",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						found = true
+						if g.DeviceCount != 2 {
+							t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+			},
+		},
+		// 12. Create a second group for Subscriber A (Group A2) with 0 devices to verify LEFT JOIN
+		{
+			ID:             "TC-DEVCNT-012-CREATE-A2-EMPTY",
+			Desc:           "Create Group A2 (empty) for Subscriber A",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			RequestBody:    `{"name":"Group-A2-Empty"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var created struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(body, &created); err != nil || created.ID == "" {
+					t.Fatalf("failed to unmarshal group A2 ID: %v", err)
+				}
+				vars["groupA2"] = created.ID
+			},
+		},
+		// 13. Verify both groups appear: Group A1 has 2, Group A2 has 0 (LEFT JOIN verification)
+		{
+			ID:             "TC-DEVCNT-013-LIST-LEFT-JOIN-MIXED",
+			Desc:           "LEFT JOIN verification: group with devices has 2, group without has 0",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				if len(groups) != 2 {
+					t.Fatalf("expected 2 groups, got %d", len(groups))
+				}
+				foundA1, foundA2 := false, false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						foundA1 = true
+						if g.DeviceCount != 2 {
+							t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
+						}
+					}
+					if g.ID == vars["groupA2"] {
+						foundA2 = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected group %s device_count: 0, got %d", vars["groupA2"], g.DeviceCount)
+						}
+					}
+				}
+				if !foundA1 {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+				if !foundA2 {
+					t.Errorf("expected group %s not found", vars["groupA2"])
+				}
+			},
+		},
+		// 14. Create Group B1 for Subscriber B
+		{
+			ID:             "TC-DEVCNT-014-CREATE-B1",
+			Desc:           "Create Group B1 for Subscriber B",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subB}/groups",
+			RequestBody:    `{"name":"Group-B1"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var created struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(body, &created); err != nil || created.ID == "" {
+					t.Fatalf("failed to unmarshal group B1 ID: %v", err)
+				}
+				vars["groupB1"] = created.ID
+			},
+		},
+		// 15. Add 1 device to Subscriber B's Group B1
+		{
+			ID:             "TC-DEVCNT-015-ADD-DEV-B1",
+			Desc:           "Add device to Subscriber B Group B1",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subB}/groups/{groupB1}/devices",
+			RequestBody:    `{"client_mac":"{macB1}"}`,
+			ExpectedStatus: http.StatusOK,
+		},
+		// 16. Verify Subscriber Isolation:
+		// Subscriber A list returns device_count 2 for Group A1 and 0 for Group A2 (never counts B's devices)
+		{
+			ID:             "TC-DEVCNT-016-ISOLATION-SUBA",
+			Desc:           "Subscriber isolation: Subscriber A list unaffected by Subscriber B",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				if len(groups) != 2 {
+					t.Fatalf("expected 2 groups for subA, got %d", len(groups))
+				}
+				foundA1, foundA2 := false, false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						foundA1 = true
+						if g.DeviceCount != 2 {
+							t.Errorf("expected subA group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
+						}
+					}
+					if g.ID == vars["groupA2"] {
+						foundA2 = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected subA group %s device_count: 0, got %d", vars["groupA2"], g.DeviceCount)
+						}
+					}
+				}
+				if !foundA1 {
+					t.Errorf("expected subA group %s not found", vars["groupA1"])
+				}
+				if !foundA2 {
+					t.Errorf("expected subA group %s not found", vars["groupA2"])
+				}
+			},
+		},
+		// 17. Verify Subscriber Isolation:
+		// Subscriber B list returns device_count 1 for Group B1 (never counts A's devices)
+		{
+			ID:             "TC-DEVCNT-017-ISOLATION-SUBB",
+			Desc:           "Subscriber isolation: Subscriber B list returns device_count: 1",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subB}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupB1"] {
+						found = true
+						if g.DeviceCount != 1 {
+							t.Errorf("expected subB group %s device_count: 1, got %d", vars["groupB1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected subB group %s not found", vars["groupB1"])
+				}
+			},
+		},
+		// 18. Remove all remaining devices from Group A1 (macA2 and macA3) -> count becomes 0
+		{
+			ID:             "TC-DEVCNT-018-REMOVE-DEVICE-2",
+			Desc:           "Remove second device from Group A1",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices/{macA2}",
+			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-DEVCNT-019-REMOVE-DEVICE-3",
+			Desc:           "Remove third device from Group A1",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices/{macA3}",
+			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-DEVCNT-020-LIST-ALL-REMOVED",
+			Desc:           "Deleting all devices returns device_count: 0",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subA}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				found := false
+				for _, g := range groups {
+					if g.ID == vars["groupA1"] {
+						found = true
+						if g.DeviceCount != 0 {
+							t.Errorf("expected group %s device_count: 0 after all devices removed, got %d", vars["groupA1"], g.DeviceCount)
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected group %s not found", vars["groupA1"])
+				}
+			},
+		},
+	}
+
+	runTestSuite(t, app, vars, testCases)
 }
