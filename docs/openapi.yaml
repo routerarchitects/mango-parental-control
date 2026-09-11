@@ -106,7 +106,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Group'
+                  $ref: '#/components/schemas/GroupListItem'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/StorageFailure' }
@@ -629,6 +629,16 @@ components:
         updated_at:
           type: string
           format: date-time
+    GroupListItem:
+      allOf:
+        - $ref: '#/components/schemas/Group'
+        - type: object
+          required: [device_count]
+          properties:
+            device_count:
+              type: integer
+              description: Number of client MAC addresses currently assigned to this group.
+              example: 3
     GroupCreateRequest:
       type: object
       additionalProperties: false

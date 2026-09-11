@@ -588,20 +588,27 @@ func (h *ServiceHandler) ListGroups(c fiber.Ctx) error {
 	}
 
 	rows, err := h.DB.Pool.Query(c.Context(), `
-		SELECT id, subscriber_id, config_index, name, description, created_at, updated_at
-		FROM pc_groups
-		WHERE subscriber_id = $1
-		ORDER BY config_index ASC
+		-- Left join pc_group_devices to count assigned devices per group.
+		-- Joining on both subscriber_id and group_id enforces subscriber boundary isolation.
+		-- COUNT(d.client_mac) correctly returns 0 when no devices are assigned to a group.
+		SELECT g.id, g.subscriber_id, g.config_index, g.name, g.description, g.created_at, g.updated_at,
+		       COUNT(d.client_mac) AS device_count
+		FROM pc_groups g
+		LEFT JOIN pc_group_devices d ON d.subscriber_id = g.subscriber_id AND d.group_id = g.id
+		WHERE g.subscriber_id = $1
+		GROUP BY g.id, g.subscriber_id, g.config_index, g.name, g.description, g.created_at, g.updated_at
+		ORDER BY g.config_index ASC
 	`, subID)
 	if err != nil {
 		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 	}
 	defer rows.Close()
 
-	var groups []models.Group
+	var groups []models.GroupWithDeviceCount
 	for rows.Next() {
-		var g models.Group
-		if err := rows.Scan(&g.ID, &g.SubscriberID, &g.GroupConfigIndex, &g.Name, &g.Description, &g.CreatedAt, &g.UpdatedAt); err != nil {
+		var g models.GroupWithDeviceCount
+		if err := rows.Scan(&g.ID, &g.SubscriberID, &g.GroupConfigIndex, &g.Name, &g.Description,
+			&g.CreatedAt, &g.UpdatedAt, &g.DeviceCount); err != nil {
 			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 		}
 		groups = append(groups, g)
@@ -611,7 +618,7 @@ func (h *ServiceHandler) ListGroups(c fiber.Ctx) error {
 	}
 
 	if groups == nil {
-		groups = []models.Group{}
+		groups = []models.GroupWithDeviceCount{}
 	}
 	return c.JSON(groups)
 }
