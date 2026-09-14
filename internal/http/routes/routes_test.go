@@ -44,6 +44,17 @@ func normalizeMAC(mac string) string {
 	return strings.ToUpper(mac)
 }
 
+func getGroupDeviceCount(t *testing.T, groups []models.GroupWithDeviceCount, groupID string) int {
+	t.Helper()
+	for _, g := range groups {
+		if g.ID == groupID {
+			return g.DeviceCount
+		}
+	}
+	t.Errorf("expected group %s not found", groupID)
+	return -1
+}
+
 func TestParentalControlAPI(t *testing.T) {
 	dbConn := initTestDB(t)
 	if dbConn == nil {
@@ -215,18 +226,8 @@ func TestParentalControlAPI(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID1"] {
-						found = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected group %s device_count 0, got %d", vars["groupID1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 0 {
+					t.Errorf("expected group %s device_count 0, got %d", vars["groupID1"], count)
 				}
 			},
 		},
@@ -281,18 +282,8 @@ func TestParentalControlAPI(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID1"] {
-						found = true
-						if g.DeviceCount != 1 {
-							t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 1 {
+					t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], count)
 				}
 			},
 		},
@@ -378,18 +369,8 @@ func TestParentalControlAPI(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID1"] {
-						found = true
-						if g.DeviceCount != 2 {
-							t.Errorf("expected group %s device_count 2, got %d", vars["groupID1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 2 {
+					t.Errorf("expected group %s device_count 2, got %d", vars["groupID1"], count)
 				}
 			},
 		},
@@ -411,18 +392,8 @@ func TestParentalControlAPI(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID1"] {
-						found = true
-						if g.DeviceCount != 1 {
-							t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 1 {
+					t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], count)
 				}
 			},
 		},
@@ -1556,18 +1527,8 @@ func TestSubscriberWorkflow(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID"] {
-						found = true
-						if g.DeviceCount != 1 {
-							t.Errorf("expected group %s device_count 1, got %d", vars["groupID"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID"]); count != 1 {
+					t.Errorf("expected group %s device_count 1, got %d", vars["groupID"], count)
 				}
 			},
 		},
@@ -1651,18 +1612,8 @@ func TestSubscriberWorkflow(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal JSON: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupID"] {
-						found = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected group %s device_count 0, got %d", vars["groupID"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupID"])
+				if count := getGroupDeviceCount(t, groups, vars["groupID"]); count != 0 {
+					t.Errorf("expected group %s device_count 0, got %d", vars["groupID"], count)
 				}
 			},
 		},
@@ -1758,18 +1709,20 @@ func TestGroupDeviceCount(t *testing.T) {
 
 	subA := uuid.New().String()
 	subB := uuid.New().String()
+	subEmpty := uuid.New().String()
 	macA1 := "00:11:22:33:44:01"
 	macA2 := "00:11:22:33:44:02"
 	macA3 := "00:11:22:33:44:03"
 	macB1 := "00:11:22:33:44:B1"
 
 	vars := map[string]string{
-		"subA":  subA,
-		"subB":  subB,
-		"macA1": macA1,
-		"macA2": macA2,
-		"macA3": macA3,
-		"macB1": macB1,
+		"subA":     subA,
+		"subB":     subB,
+		"subEmpty": subEmpty,
+		"macA1":    macA1,
+		"macA2":    macA2,
+		"macA3":    macA3,
+		"macB1":    macB1,
 	}
 
 	testCases := []apiTestCase{
@@ -1845,18 +1798,8 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						found = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected group %s device_count: 0, got %d", vars["groupA1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupA1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 0 {
+					t.Errorf("expected group %s device_count: 0, got %d", vars["groupA1"], count)
 				}
 			},
 		},
@@ -1881,18 +1824,8 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						found = true
-						if g.DeviceCount != 1 {
-							t.Errorf("expected group %s device_count: 1, got %d", vars["groupA1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupA1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 1 {
+					t.Errorf("expected group %s device_count: 1, got %d", vars["groupA1"], count)
 				}
 			},
 		},
@@ -1926,18 +1859,8 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						found = true
-						if g.DeviceCount != 3 {
-							t.Errorf("expected group %s device_count: 3, got %d", vars["groupA1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupA1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 3 {
+					t.Errorf("expected group %s device_count: 3, got %d", vars["groupA1"], count)
 				}
 			},
 		},
@@ -1961,18 +1884,8 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						found = true
-						if g.DeviceCount != 2 {
-							t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupA1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 2 {
+					t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], count)
 				}
 			},
 		},
@@ -2009,26 +1922,11 @@ func TestGroupDeviceCount(t *testing.T) {
 				if len(groups) != 2 {
 					t.Fatalf("expected 2 groups, got %d", len(groups))
 				}
-				foundA1, foundA2 := false, false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						foundA1 = true
-						if g.DeviceCount != 2 {
-							t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
-						}
-					}
-					if g.ID == vars["groupA2"] {
-						foundA2 = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected group %s device_count: 0, got %d", vars["groupA2"], g.DeviceCount)
-						}
-					}
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 2 {
+					t.Errorf("expected group %s device_count: 2, got %d", vars["groupA1"], count)
 				}
-				if !foundA1 {
-					t.Errorf("expected group %s not found", vars["groupA1"])
-				}
-				if !foundA2 {
-					t.Errorf("expected group %s not found", vars["groupA2"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA2"]); count != 0 {
+					t.Errorf("expected group %s device_count: 0, got %d", vars["groupA2"], count)
 				}
 			},
 		},
@@ -2075,26 +1973,11 @@ func TestGroupDeviceCount(t *testing.T) {
 				if len(groups) != 2 {
 					t.Fatalf("expected 2 groups for subA, got %d", len(groups))
 				}
-				foundA1, foundA2 := false, false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						foundA1 = true
-						if g.DeviceCount != 2 {
-							t.Errorf("expected subA group %s device_count: 2, got %d", vars["groupA1"], g.DeviceCount)
-						}
-					}
-					if g.ID == vars["groupA2"] {
-						foundA2 = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected subA group %s device_count: 0, got %d", vars["groupA2"], g.DeviceCount)
-						}
-					}
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 2 {
+					t.Errorf("expected subA group %s device_count: 2, got %d", vars["groupA1"], count)
 				}
-				if !foundA1 {
-					t.Errorf("expected subA group %s not found", vars["groupA1"])
-				}
-				if !foundA2 {
-					t.Errorf("expected subA group %s not found", vars["groupA2"])
+				if count := getGroupDeviceCount(t, groups, vars["groupA2"]); count != 0 {
+					t.Errorf("expected subA group %s device_count: 0, got %d", vars["groupA2"], count)
 				}
 			},
 		},
@@ -2111,18 +1994,8 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupB1"] {
-						found = true
-						if g.DeviceCount != 1 {
-							t.Errorf("expected subB group %s device_count: 1, got %d", vars["groupB1"], g.DeviceCount)
-						}
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected subB group %s not found", vars["groupB1"])
+				if count := getGroupDeviceCount(t, groups, vars["groupB1"]); count != 1 {
+					t.Errorf("expected subB group %s device_count: 1, got %d", vars["groupB1"], count)
 				}
 			},
 		},
@@ -2152,18 +2025,31 @@ func TestGroupDeviceCount(t *testing.T) {
 				if err := json.Unmarshal(body, &groups); err != nil {
 					t.Fatalf("failed to unmarshal groups: %v", err)
 				}
-				found := false
-				for _, g := range groups {
-					if g.ID == vars["groupA1"] {
-						found = true
-						if g.DeviceCount != 0 {
-							t.Errorf("expected group %s device_count: 0 after all devices removed, got %d", vars["groupA1"], g.DeviceCount)
-						}
-						break
-					}
+				if count := getGroupDeviceCount(t, groups, vars["groupA1"]); count != 0 {
+					t.Errorf("expected group %s device_count: 0 after all devices removed, got %d", vars["groupA1"], count)
 				}
-				if !found {
-					t.Errorf("expected group %s not found", vars["groupA1"])
+			},
+		},
+		// 21. Empty subscriber with zero groups returns empty slice [] cleanly (not null)
+		{
+			ID:             "TC-DEVCNT-021-LIST-EMPTY-SUBSCRIBER",
+			Desc:           "Empty subscriber with zero groups returns [] cleanly",
+			Method:         http.MethodGet,
+			URL:            "/api/v1/subscribers/{subEmpty}/groups",
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var groups []models.GroupWithDeviceCount
+				if err := json.Unmarshal(body, &groups); err != nil {
+					t.Fatalf("failed to unmarshal groups: %v", err)
+				}
+				if groups == nil {
+					t.Errorf("expected non-nil empty slice [], got nil")
+				}
+				if len(groups) != 0 {
+					t.Errorf("expected 0 groups, got %d", len(groups))
+				}
+				if strings.TrimSpace(string(body)) != "[]" {
+					t.Errorf("expected raw response body '[]', got '%s'", string(body))
 				}
 			},
 		},
