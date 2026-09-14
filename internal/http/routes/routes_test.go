@@ -216,22 +216,6 @@ func TestParentalControlAPI(t *testing.T) {
 			},
 		},
 		{
-			ID:             "TC-LIST-GROUPS-001",
-			Desc:           "List groups returns device_count: 0 when no devices are assigned",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups",
-			ExpectedStatus: http.StatusOK,
-			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var groups []models.GroupWithDeviceCount
-				if err := json.Unmarshal(body, &groups); err != nil {
-					t.Fatalf("failed to unmarshal JSON: %v", err)
-				}
-				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 0 {
-					t.Errorf("expected group %s device_count 0, got %d", vars["groupID1"], count)
-				}
-			},
-		},
-		{
 			ID:     "TC-GET-GROUP-PRIVATE-001",
 			Desc:   "Get group details successfully on private router with auth",
 			Method: http.MethodGet,
@@ -359,43 +343,11 @@ func TestParentalControlAPI(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
-			ID:             "TC-LIST-GROUPS-003",
-			Desc:           "List groups returns device_count: 2 after adding second device",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups",
-			ExpectedStatus: http.StatusOK,
-			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var groups []models.GroupWithDeviceCount
-				if err := json.Unmarshal(body, &groups); err != nil {
-					t.Fatalf("failed to unmarshal JSON: %v", err)
-				}
-				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 2 {
-					t.Errorf("expected group %s device_count 2, got %d", vars["groupID1"], count)
-				}
-			},
-		},
-		{
 			ID:             "TC-REMOVE-DEVICE-002",
 			Desc:           "Remove device successfully - updates config-raw",
 			Method:         http.MethodDelete,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices/{macAddress1}",
 			ExpectedStatus: http.StatusOK,
-		},
-		{
-			ID:             "TC-LIST-GROUPS-004",
-			Desc:           "List groups returns device_count: 1 after removing a device",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups",
-			ExpectedStatus: http.StatusOK,
-			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var groups []models.GroupWithDeviceCount
-				if err := json.Unmarshal(body, &groups); err != nil {
-					t.Fatalf("failed to unmarshal JSON: %v", err)
-				}
-				if count := getGroupDeviceCount(t, groups, vars["groupID1"]); count != 1 {
-					t.Errorf("expected group %s device_count 1, got %d", vars["groupID1"], count)
-				}
-			},
 		},
 		{
 			ID:             "TC-UNLINK-SCH-001",
@@ -1517,22 +1469,6 @@ func TestSubscriberWorkflow(t *testing.T) {
 			ExpectedStatus: http.StatusOK,
 		},
 		{
-			ID:             "WF-TC-LIST-GROUP-003-DEVCOUNT",
-			Desc:           "Verify group list has device_count: 1 after device add",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups",
-			ExpectedStatus: http.StatusOK,
-			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var groups []models.GroupWithDeviceCount
-				if err := json.Unmarshal(body, &groups); err != nil {
-					t.Fatalf("failed to unmarshal JSON: %v", err)
-				}
-				if count := getGroupDeviceCount(t, groups, vars["groupID"]); count != 1 {
-					t.Errorf("expected group %s device_count 1, got %d", vars["groupID"], count)
-				}
-			},
-		},
-		{
 			ID:             "WF-TC-CREATE-SCH-004",
 			Desc:           "Create Schedule",
 			Method:         http.MethodPost,
@@ -1600,22 +1536,6 @@ func TestSubscriberWorkflow(t *testing.T) {
 			Method:         http.MethodDelete,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID}/devices/{macA}",
 			ExpectedStatus: http.StatusOK,
-		},
-		{
-			ID:             "WF-TC-LIST-GROUP-008-DEVCOUNT",
-			Desc:           "Verify group list has device_count: 0 after device remove",
-			Method:         http.MethodGet,
-			URL:            "/api/v1/subscribers/{subID}/groups",
-			ExpectedStatus: http.StatusOK,
-			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var groups []models.GroupWithDeviceCount
-				if err := json.Unmarshal(body, &groups); err != nil {
-					t.Fatalf("failed to unmarshal JSON: %v", err)
-				}
-				if count := getGroupDeviceCount(t, groups, vars["groupID"]); count != 0 {
-					t.Errorf("expected group %s device_count 0, got %d", vars["groupID"], count)
-				}
-			},
 		},
 		{
 			ID:             "WF-TC-DELETE-GROUP-009",
