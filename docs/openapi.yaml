@@ -210,8 +210,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
-      summary: Add device to group
-      description: Assign a device (MAC address) to a group. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
+      summary: Add devices to group
+      description: Assign one or more devices (MAC addresses) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -223,7 +223,7 @@ paths:
               $ref: '#/components/schemas/GroupDeviceCreateRequest'
       responses:
         '200':
-          description: Device assigned
+          description: Devices assigned
           content:
             application/json:
               schema:
@@ -684,11 +684,16 @@ components:
     GroupDeviceCreateRequest:
       type: object
       additionalProperties: false
-      required: [client_mac]
+      required: [client_macs]
       properties:
-        client_mac:
-          type: string
-          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        client_macs:
+          type: array
+          description: List of client MAC addresses to assign to the group. Must contain at least one MAC address. All items must be valid MAC addresses and distinct.
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
     Schedule:
       type: object
       required: [id, subscriber_id, schedule_config_index, name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays, created_at, updated_at]
@@ -970,7 +975,13 @@ components:
       description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
-        - $ref: '#/components/schemas/GroupDevice'
+        - type: object
+          required: [devices]
+          properties:
+            devices:
+              type: array
+              items:
+                $ref: '#/components/schemas/GroupDevice'
     ScheduleWriteResponse:
       description: Schedule write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:

@@ -901,21 +901,30 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Malformed JSON body", nil)
 	}
 
-	// Validate extra fields
-	if err := validateExtraFields(c.Body(), []string{"client_mac"}); err != nil {
+	// Validate extra fields (only client_macs is allowed)
+	if err := validateExtraFields(c.Body(), []string{"client_macs"}); err != nil {
 		return sendError(c, fiber.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 
-	if req.ClientMAC == "" {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "client_mac is required", nil)
-	}
-	if !validateMAC(req.ClientMAC) {
-		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Invalid MAC address format", nil)
+	if len(req.ClientMACs) == 0 {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", "client_macs is required and must contain at least one MAC address", nil)
 	}
 
-	normalizedMAC := normalizeMAC(req.ClientMAC)
+	normalizedMACs := make([]string, 0, len(req.ClientMACs))
+	seen := make(map[string]bool, len(req.ClientMACs))
+	for _, mac := range req.ClientMACs {
+		if mac == "" || !validateMAC(mac) {
+			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Invalid MAC address format", nil)
+		}
+		norm := normalizeMAC(mac)
+		if seen[norm] {
+			return sendError(c, fiber.StatusBadRequest, "invalid_request", "Duplicate MAC address in client_macs", nil)
+		}
+		seen[norm] = true
+		normalizedMACs = append(normalizedMACs, norm)
+	}
 
-	// Check if group exists
+	// Check if group exists for this subscriber
 	var exists bool
 	err := h.DB.Pool.QueryRow(c.Context(), "SELECT EXISTS(SELECT 1 FROM pc_groups WHERE subscriber_id = $1 AND id = $2)", subID, gID).Scan(&exists)
 	if err != nil {
@@ -925,50 +934,111 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 		return sendError(c, fiber.StatusNotFound, "group_not_found", "Group not found", nil)
 	}
 
-	// Check if device already assigned to a group of the same subscriber
-	var oldGroupID string
-	err = h.DB.Pool.QueryRow(c.Context(), "SELECT group_id FROM pc_group_devices WHERE subscriber_id = $1 AND client_mac = $2", subID, normalizedMAC).Scan(&oldGroupID)
-	if err == nil {
-		if oldGroupID == gID {
-			// Idempotent assignment
-			var existing models.GroupDevice
-			_ = h.DB.Pool.QueryRow(c.Context(), `
-				SELECT subscriber_id, group_id, client_mac, created_at, updated_at
-				FROM pc_group_devices
-				WHERE subscriber_id = $1 AND client_mac = $2
-			`, subID, normalizedMAC).Scan(&existing.SubscriberID, &existing.GroupID, &existing.ClientMAC, &existing.CreatedAt, &existing.UpdatedAt)
+	// Begin atomic transaction
+	tx, err := h.DB.Pool.Begin(c.Context())
+	if err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+	defer tx.Rollback(c.Context())
 
-			return c.JSON(models.GroupDeviceWriteResponse{
-				GroupDevice: existing,
-				ConfigRaw:   nil,
-			})
-		} else {
-			return sendError(c, fiber.StatusConflict, "device_already_assigned", "Device already assigned to another group", nil)
+	// Find existing assignments for all requested MACs
+	type existingDevice struct {
+		GroupID   string
+		ClientMAC string
+		CreatedAt time.Time
+		UpdatedAt time.Time
+	}
+	existingMap := make(map[string]existingDevice)
+
+	rows, err := tx.Query(c.Context(), `
+		SELECT group_id, client_mac::text, created_at, updated_at
+		FROM pc_group_devices
+		WHERE subscriber_id = $1 AND client_mac = ANY($2::text[]::macaddr[])
+	`, subID, normalizedMACs)
+	if err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var d existingDevice
+		if err := rows.Scan(&d.GroupID, &d.ClientMAC, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+		}
+		normMAC := normalizeMAC(d.ClientMAC)
+		existingMap[normMAC] = d
+	}
+	if err := rows.Err(); err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+	rows.Close()
+
+	// Detect cross-group conflicts
+	for _, norm := range normalizedMACs {
+		if existing, ok := existingMap[norm]; ok {
+			if existing.GroupID != gID {
+				return sendError(c, fiber.StatusConflict, "device_already_assigned", "Device already assigned to another group", nil)
+			}
 		}
 	}
 
 	now := time.Now().UTC()
-	_, err = h.DB.Pool.Exec(c.Context(), `
-		INSERT INTO pc_group_devices (subscriber_id, group_id, client_mac, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, subID, gID, normalizedMAC, now, now)
-	if err != nil {
+	newCount := 0
+	resultDevices := make([]models.GroupDevice, 0, len(normalizedMACs))
+
+	for _, norm := range normalizedMACs {
+		if existing, ok := existingMap[norm]; ok {
+			// Idempotent assignment: already in target group
+			resultDevices = append(resultDevices, models.GroupDevice{
+				SubscriberID: subID,
+				GroupID:      gID,
+				ClientMAC:    norm,
+				CreatedAt:    existing.CreatedAt,
+				UpdatedAt:    existing.UpdatedAt,
+			})
+		} else {
+			_, err := tx.Exec(c.Context(), `
+				INSERT INTO pc_group_devices (subscriber_id, group_id, client_mac, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5)
+			`, subID, gID, norm, now, now)
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "pc_group_devices_pkey" {
+					return sendError(c, fiber.StatusConflict, "device_already_assigned", "Device already assigned to another group", nil)
+				}
+				return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+			}
+			newCount++
+			resultDevices = append(resultDevices, models.GroupDevice{
+				SubscriberID: subID,
+				GroupID:      gID,
+				ClientMAC:    norm,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			})
+		}
+	}
+
+	if err := tx.Commit(c.Context()); err != nil {
 		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 	}
 
-	cfgRaw, _, err := handleConfigRaw(c.Context(), h.DB, subID)
-	if err != nil {
-		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	// Trigger config-raw generation only if state changed (new devices inserted)
+	var cfgRaw []models.ConfigRawCommand
+	if newCount > 0 {
+		var err error
+		cfgRaw, _, err = handleConfigRaw(c.Context(), h.DB, subID)
+		if err != nil {
+			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+		}
+	}
+
+	if resultDevices == nil {
+		resultDevices = []models.GroupDevice{}
 	}
 
 	return c.JSON(models.GroupDeviceWriteResponse{
-		GroupDevice: models.GroupDevice{
-			SubscriberID: subID,
-			GroupID:      gID,
-			ClientMAC:    normalizedMAC,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		},
+		Devices:   resultDevices,
 		ConfigRaw: cfgRaw,
 	})
 }
