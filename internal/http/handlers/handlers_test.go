@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/routerarchitects/mango-parental-control/internal/models"
 )
@@ -227,5 +229,92 @@ func TestDefaultsAndLimits(t *testing.T) {
 	os.Setenv("PC_MAX_SCHEDULES_LIMIT", "invalid")
 	if getMaxGroupsLimit() != 50 || getMaxSchedulesLimit() != 20 {
 		t.Errorf("limit overrides failed: groups=%d, schedules=%d", getMaxGroupsLimit(), getMaxSchedulesLimit())
+	}
+}
+
+func TestGroupModelSerialization(t *testing.T) {
+	now := time.Now().UTC()
+	desc := "Sample description"
+
+	// 1. Base Group must NOT have device_count in its JSON output
+	baseGroup := models.Group{
+		ID:               "11111111-1111-1111-1111-111111111111",
+		SubscriberID:     "22222222-2222-2222-2222-222222222222",
+		GroupConfigIndex: 1,
+		Name:             "Kids Devices",
+		Description:      &desc,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	baseBytes, err := json.Marshal(baseGroup)
+	if err != nil {
+		t.Fatalf("failed to marshal base Group: %v", err)
+	}
+
+	var baseMap map[string]any
+	if err := json.Unmarshal(baseBytes, &baseMap); err != nil {
+		t.Fatalf("failed to unmarshal base Group map: %v", err)
+	}
+
+	if _, exists := baseMap["device_count"]; exists {
+		t.Errorf("models.Group must NOT serialize device_count, got: %v", baseMap["device_count"])
+	}
+
+	// 2. GroupWithDeviceCount MUST have device_count in its JSON output
+	groupWithCount := models.GroupWithDeviceCount{
+		Group:       baseGroup,
+		DeviceCount: 5,
+	}
+
+	withCountBytes, err := json.Marshal(groupWithCount)
+	if err != nil {
+		t.Fatalf("failed to marshal GroupWithDeviceCount: %v", err)
+	}
+
+	var withCountMap map[string]any
+	if err := json.Unmarshal(withCountBytes, &withCountMap); err != nil {
+		t.Fatalf("failed to unmarshal GroupWithDeviceCount map: %v", err)
+	}
+
+	val, exists := withCountMap["device_count"]
+	if !exists {
+		t.Error("models.GroupWithDeviceCount MUST serialize device_count, but field was missing")
+	} else if countFloat, ok := val.(float64); !ok || int(countFloat) != 5 {
+		t.Errorf("expected device_count to be 5, got: %v", val)
+	}
+
+	// 3. GroupWithDeviceCount with 0 devices serializes device_count: 0
+	groupWithZero := models.GroupWithDeviceCount{
+		Group:       baseGroup,
+		DeviceCount: 0,
+	}
+	zeroBytes, err := json.Marshal(groupWithZero)
+	if err != nil {
+		t.Fatalf("failed to marshal GroupWithDeviceCount: %v", err)
+	}
+	var zeroMap map[string]any
+	if err := json.Unmarshal(zeroBytes, &zeroMap); err != nil {
+		t.Fatalf("failed to unmarshal zeroMap: %v", err)
+	}
+	if val, ok := zeroMap["device_count"]; !ok || val != float64(0) {
+		t.Errorf("expected device_count: 0, got: %v", val)
+	}
+
+	// 4. GroupWriteResponse must NOT contain device_count
+	writeResp := models.GroupWriteResponse{
+		Group:     baseGroup,
+		ConfigRaw: nil,
+	}
+	writeRespBytes, err := json.Marshal(writeResp)
+	if err != nil {
+		t.Fatalf("failed to marshal GroupWriteResponse: %v", err)
+	}
+	var writeRespMap map[string]any
+	if err := json.Unmarshal(writeRespBytes, &writeRespMap); err != nil {
+		t.Fatalf("failed to unmarshal GroupWriteResponse map: %v", err)
+	}
+	if _, exists := writeRespMap["device_count"]; exists {
+		t.Errorf("GroupWriteResponse must NOT contain device_count, got: %v", writeRespMap["device_count"])
 	}
 }
