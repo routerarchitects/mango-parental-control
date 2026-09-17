@@ -211,7 +211,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Add devices to group
-      description: Assign one or more devices (MAC addresses) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
+      description: Assign one or more devices (MAC addresses, at most 100) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -688,8 +688,9 @@ components:
       properties:
         client_macs:
           type: array
-          description: List of client MAC addresses to assign to the group. Must contain at least one MAC address. All items must be valid MAC addresses and distinct.
+          description: List of client MAC addresses to assign to the group. Must contain at least one and at most 100 MAC addresses. All items must be valid MAC addresses and distinct.
           minItems: 1
+          maxItems: 100
           uniqueItems: true
           items:
             type: string

@@ -889,6 +889,8 @@ func (h *ServiceHandler) ListDevices(c fiber.Ctx) error {
 	return c.JSON(devices)
 }
 
+const maxBulkDevices = 100
+
 func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 	subID := c.Params("subscriber_id")
 	gID := c.Params("group_id")
@@ -908,6 +910,10 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 
 	if len(req.ClientMACs) == 0 {
 		return sendError(c, fiber.StatusBadRequest, "invalid_request", "client_macs is required and must contain at least one MAC address", nil)
+	}
+
+	if len(req.ClientMACs) > maxBulkDevices {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", "client_macs cannot contain more than 100 devices", nil)
 	}
 
 	normalizedMACs := make([]string, 0, len(req.ClientMACs))
@@ -971,7 +977,6 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 	if err := rows.Err(); err != nil {
 		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 	}
-	rows.Close()
 
 	// Detect cross-group conflicts
 	for _, norm := range normalizedMACs {

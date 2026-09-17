@@ -2009,6 +2009,26 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 		_, _ = dbConn.Pool.Exec(context.Background(), "DELETE FROM pc_policy_state WHERE subscriber_id = $1", subID)
 	}()
 
+	macs101 := make([]string, 101)
+	for i := 0; i < 101; i++ {
+		macs101[i] = fmt.Sprintf("02:00:10:00:%02X:%02X", i/256, i%256)
+	}
+	body101Bytes, err := json.Marshal(map[string]any{"client_macs": macs101})
+	if err != nil {
+		t.Fatalf("failed to marshal 101 macs: %v", err)
+	}
+	body101 := string(body101Bytes)
+
+	macs100 := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		macs100[i] = fmt.Sprintf("02:00:20:00:%02X:%02X", i/256, i%256)
+	}
+	body100Bytes, err := json.Marshal(map[string]any{"client_macs": macs100})
+	if err != nil {
+		t.Fatalf("failed to marshal 100 macs: %v", err)
+	}
+	body100 := string(body100Bytes)
+
 	testCases := []apiTestCase{
 		// Setup: Create Group 1
 		{
@@ -2318,6 +2338,99 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				}
 				if grpID != vars["groupID2"] {
 					t.Errorf("expected MAC-2 to remain in group %s, got %s", vars["groupID2"], grpID)
+				}
+			},
+		},
+		// Test 6 — Maximum devices limit (100 devices):
+		// Step 6a: Create Group 3 for device limit testing
+		{
+			ID:             "TC-BULK-DEV-000-SETUP-GRP3",
+			Desc:           "Create Group 3 for device limit testing",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups",
+			RequestBody:    `{"name":"Bulk Test Group 3"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var created struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(body, &created); err != nil {
+					t.Fatalf("failed to parse group response: %v", err)
+				}
+				vars["groupID3"] = created.ID
+			},
+		},
+		// Step 6b: Exceeds limit (101 MACs) -> 400 Bad Request, zero DB changes
+		{
+			ID:             "TC-ADD-DEVICES-EXCEEDS-MAX-LIMIT",
+			Desc:           "Verify client_macs exceeding 100 devices is rejected with 400 Bad Request",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID3}/devices",
+			RequestBody:    body101,
+			ExpectedStatus: http.StatusBadRequest,
+			Setup: func(t *testing.T, vars map[string]string) {
+				var countBefore int
+				err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT COUNT(*) FROM pc_group_devices WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&countBefore)
+				if err != nil {
+					t.Fatalf("failed to query count before: %v", err)
+				}
+				vars["devCountBefore101"] = fmt.Sprintf("%d", countBefore)
+			},
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var errResp models.ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("failed to unmarshal error response: %v", err)
+				}
+				if errResp.Error.Code != "invalid_request" {
+					t.Errorf("expected error code invalid_request, got %s", errResp.Error.Code)
+				}
+				if !strings.Contains(errResp.Error.Message, "100 devices") {
+					t.Errorf("expected error message to mention '100 devices', got %s", errResp.Error.Message)
+				}
+
+				// Verify zero DB modifications (device count before == device count after)
+				var countAfter int
+				err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT COUNT(*) FROM pc_group_devices WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&countAfter)
+				if err != nil {
+					t.Fatalf("failed to query count after: %v", err)
+				}
+				if fmt.Sprintf("%d", countAfter) != vars["devCountBefore101"] {
+					t.Errorf("expected zero DB modifications (count before %s, after %d)",
+						vars["devCountBefore101"], countAfter)
+				}
+			},
+		},
+		// Step 6c: Exactly at limit (100 MACs) -> 200 OK, 100 devices in response and DB
+		{
+			ID:             "TC-ADD-DEVICES-MAX-LIMIT-BOUNDARY",
+			Desc:           "Bulk add exactly 100 devices (maximum allowed) successfully",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID3}/devices",
+			RequestBody:    body100,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var resp models.GroupDeviceWriteResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to unmarshal response: %v", err)
+				}
+				if len(resp.Devices) != 100 {
+					t.Fatalf("expected 100 devices in response, got %d", len(resp.Devices))
+				}
+
+				// Verify database contains exactly 100 devices for groupID3
+				var dbCount int
+				err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT COUNT(*) FROM pc_group_devices WHERE subscriber_id = $1 AND group_id = $2",
+					vars["subID"], vars["groupID3"]).Scan(&dbCount)
+				if err != nil {
+					t.Fatalf("failed to query pc_group_devices: %v", err)
+				}
+				if dbCount != 100 {
+					t.Errorf("expected 100 devices in DB for groupID3, found %d", dbCount)
 				}
 			},
 		},
