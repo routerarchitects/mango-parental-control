@@ -1370,9 +1370,7 @@ func (h *ServiceHandler) ListScheduleGroups(c fiber.Ctx) error {
 		return sendError(c, fiber.StatusNotFound, "schedule_not_found", "Schedule not found", nil)
 	}
 
-	// Device counts are pre-aggregated in a derived table before joining with pc_groups.
-	// This avoids multiplying each group row by every device row, preventing unnecessary
-	// intermediate row expansion, memory-heavy sorting, and aggregation overhead at scale.
+	// Aggregate only devices belonging to groups in this schedule.
 	rows, err := h.DB.Pool.Query(c.Context(), `
 		SELECT
 			g.id,
@@ -1388,10 +1386,16 @@ func (h *ServiceHandler) ListScheduleGroups(c fiber.Ctx) error {
 			ON gs.subscriber_id = g.subscriber_id
 			AND gs.group_id = g.id
 		LEFT JOIN (
-			SELECT group_id, COUNT(*) AS device_count
-			FROM pc_group_devices
-			WHERE subscriber_id = $1
-			GROUP BY group_id
+			SELECT
+				d.group_id,
+				COUNT(*) AS device_count
+			FROM pc_group_devices d
+			JOIN pc_group_schedules gs2
+				ON gs2.subscriber_id = d.subscriber_id
+			   AND gs2.group_id = d.group_id
+			WHERE d.subscriber_id = $1
+			  AND gs2.schedule_id = $2
+			GROUP BY d.group_id
 		) dc ON dc.group_id = g.id
 		WHERE gs.subscriber_id = $1
 			AND gs.schedule_id = $2
