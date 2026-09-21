@@ -61,6 +61,7 @@ func registerAPIRoutes(router fiber.Router, h *handlers.ServiceHandler) {
 	router.Get("/api/v1/subscribers/:subscriber_id/schedules/:schedule_id", h.GetSchedule)
 	router.Put("/api/v1/subscribers/:subscriber_id/schedules/:schedule_id", h.UpdateSchedule)
 	router.Delete("/api/v1/subscribers/:subscriber_id/schedules/:schedule_id", h.DeleteSchedule)
+	router.Get("/api/v1/subscribers/:subscriber_id/schedules/:schedule_id/groups", h.ListScheduleGroups)
 
 	// Group-Schedule links
 	router.Get("/api/v1/subscribers/:subscriber_id/groups/:group_id/schedules", h.ListLinkedSchedules)
