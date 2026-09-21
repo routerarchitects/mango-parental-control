@@ -2438,3 +2438,424 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 
 	runTestSuite(t, app, vars, testCases)
 }
+func TestListScheduleGroups(t *testing.T) {
+	dbConn := initTestDB(t)
+	if dbConn == nil {
+		return
+	}
+	defer dbConn.Close()
+
+	app := fiber.New()
+	mockAuth := func(c fiber.Ctx) error {
+		return c.Next()
+	}
+
+	routes.RegisterPublic(app, routes.Deps{
+		DB:          dbConn,
+		AuthHandler: mockAuth,
+		Subsystem:   subsysteroutes.Config{},
+	})
+
+	ctx := context.Background()
+
+	insertSchedule := func(subID, schID, name string, configIdx int) {
+		t.Helper()
+		_, err := dbConn.Pool.Exec(ctx, `
+			INSERT INTO pc_schedules (id, subscriber_id, config_index, name, enabled, action_type, target_kind, start_minute, stop_minute, weekdays, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, true, 'BLOCK', 'INTERNET', 60, 120, ARRAY[0,1,2,3,4,5,6]::smallint[], now(), now())
+		`, schID, subID, configIdx, name)
+		if err != nil {
+			t.Fatalf("failed to insert test schedule: %v", err)
+		}
+	}
+
+	insertGroup := func(subID, grpID, name string, configIdx int) {
+		t.Helper()
+		_, err := dbConn.Pool.Exec(ctx, `
+			INSERT INTO pc_groups (id, subscriber_id, config_index, name, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, now(), now())
+		`, grpID, subID, configIdx, name)
+		if err != nil {
+			t.Fatalf("failed to insert test group: %v", err)
+		}
+	}
+
+	linkGroupSchedule := func(subID, grpID, schID string) {
+		t.Helper()
+		_, err := dbConn.Pool.Exec(ctx, `
+			INSERT INTO pc_group_schedules (subscriber_id, group_id, schedule_id, created_at)
+			VALUES ($1, $2, $3, now())
+		`, subID, grpID, schID)
+		if err != nil {
+			t.Fatalf("failed to link group and schedule: %v", err)
+		}
+	}
+
+	insertDevice := func(subID, grpID, mac string) {
+		t.Helper()
+		_, err := dbConn.Pool.Exec(ctx, `
+			INSERT INTO pc_group_devices (subscriber_id, group_id, client_mac, created_at, updated_at)
+			VALUES ($1, $2, $3::macaddr, now(), now())
+		`, subID, grpID, mac)
+		if err != nil {
+			t.Fatalf("failed to insert test device: %v", err)
+		}
+	}
+
+	doGet := func(subID, schID string) (int, []byte) {
+		t.Helper()
+		url := fmt.Sprintf("/api/v1/subscribers/%s/schedules/%s/groups", subID, schID)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set("Authorization", "Bearer expected-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("failed to perform request: %v", err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, body
+	}
+
+	// Test 1 — Invalid UUIDs
+	tRun(t, "TC-SCHED-GROUPS-001", "Invalid UUIDs rejected with 400 Bad Request", func(t *testing.T) {
+		subtests := []struct {
+			name  string
+			subID string
+			schID string
+		}{
+			{
+				name:  "invalid subscriber_id",
+				subID: "invalid-sub-uuid",
+				schID: uuid.New().String(),
+			},
+			{
+				name:  "invalid schedule_id",
+				subID: uuid.New().String(),
+				schID: "invalid-sch-uuid",
+			},
+		}
+
+		for _, st := range subtests {
+			t.Run(st.name, func(t *testing.T) {
+				status, body := doGet(st.subID, st.schID)
+				if status != http.StatusBadRequest {
+					t.Errorf("expected status 400, got %d. Body: %s", status, string(body))
+				}
+				var errResp models.ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("failed to unmarshal error response: %v", err)
+				}
+				if errResp.Error.Code != "invalid_request" {
+					t.Errorf("expected error code invalid_request, got %s", errResp.Error.Code)
+				}
+			})
+		}
+	})
+
+	// Test 2 — Schedule not found / subscriber isolation
+	tRun(t, "TC-SCHED-GROUPS-002", "Schedule not found and subscriber isolation return 404", func(t *testing.T) {
+		subA := uuid.New().String()
+		subB := uuid.New().String()
+		schA := uuid.New().String()
+		grpA := uuid.New().String()
+
+		insertSchedule(subA, schA, "SubA Schedule", 1)
+		insertGroup(subA, grpA, "SubA Group", 1)
+		linkGroupSchedule(subA, grpA, schA)
+
+		t.Run("schedule does not exist for subscriber", func(t *testing.T) {
+			nonExistentSch := uuid.New().String()
+			status, body := doGet(subA, nonExistentSch)
+			if status != http.StatusNotFound {
+				t.Errorf("expected status 404, got %d. Body: %s", status, string(body))
+			}
+			var errResp models.ErrorResponse
+			if err := json.Unmarshal(body, &errResp); err != nil {
+				t.Fatalf("failed to unmarshal error response: %v", err)
+			}
+			if errResp.Error.Code != "schedule_not_found" {
+				t.Errorf("expected error code schedule_not_found, got %s", errResp.Error.Code)
+			}
+		})
+
+		t.Run("cross-subscriber isolation: schedule belongs to another subscriber", func(t *testing.T) {
+			status, body := doGet(subB, schA)
+			if status != http.StatusNotFound {
+				t.Errorf("expected status 404 for cross-subscriber schedule, got %d. Body: %s", status, string(body))
+			}
+			var errResp models.ErrorResponse
+			if err := json.Unmarshal(body, &errResp); err != nil {
+				t.Fatalf("failed to unmarshal error response: %v", err)
+			}
+			if errResp.Error.Code != "schedule_not_found" {
+				t.Errorf("expected error code schedule_not_found, got %s", errResp.Error.Code)
+			}
+		})
+	})
+
+	// Test 3 — Schedule exists but has no groups
+	tRun(t, "TC-SCHED-GROUPS-003", "Schedule exists but has no groups returns 200 with empty array", func(t *testing.T) {
+		subID := uuid.New().String()
+		schID := uuid.New().String()
+		insertSchedule(subID, schID, "Empty Schedule", 1)
+
+		status, body := doGet(subID, schID)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status, string(body))
+		}
+
+		if strings.TrimSpace(string(body)) != "[]" {
+			t.Errorf("expected exact empty array '[]', got: %s", string(body))
+		}
+
+		var groups []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body, &groups); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups) != 0 {
+			t.Errorf("expected 0 groups, got %d", len(groups))
+		}
+	})
+
+	// Test 4 — One associated group
+	tRun(t, "TC-SCHED-GROUPS-004", "One associated group returns 200 with device_count == 0", func(t *testing.T) {
+		subID := uuid.New().String()
+		schID := uuid.New().String()
+		grpID := uuid.New().String()
+
+		insertSchedule(subID, schID, "Single Group Schedule", 1)
+		insertGroup(subID, grpID, "Single Group", 1)
+		linkGroupSchedule(subID, grpID, schID)
+
+		status, body := doGet(subID, schID)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status, string(body))
+		}
+
+		var groups []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body, &groups); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups) != 1 {
+			t.Fatalf("expected exactly 1 group, got %d", len(groups))
+		}
+		if groups[0].ID != grpID {
+			t.Errorf("expected group ID %s, got %s", grpID, groups[0].ID)
+		}
+		if groups[0].Name != "Single Group" {
+			t.Errorf("expected group name 'Single Group', got %s", groups[0].Name)
+		}
+		if groups[0].DeviceCount != 0 {
+			t.Errorf("expected device_count == 0, got %d", groups[0].DeviceCount)
+		}
+	})
+
+	// Test 5 — Multiple associated groups + ordering
+	tRun(t, "TC-SCHED-GROUPS-005", "Multiple associated groups ordered by config_index ASC without duplicates", func(t *testing.T) {
+		subID := uuid.New().String()
+		schID := uuid.New().String()
+		insertSchedule(subID, schID, "Multi-Group Schedule", 1)
+
+		grp1 := uuid.New().String()
+		grp2 := uuid.New().String()
+		grp3 := uuid.New().String()
+
+		// Insert groups out of order to verify config_index ASC ordering
+		insertGroup(subID, grp2, "Group 2", 2)
+		insertGroup(subID, grp3, "Group 3", 3)
+		insertGroup(subID, grp1, "Group 1", 1)
+
+		linkGroupSchedule(subID, grp1, schID)
+		linkGroupSchedule(subID, grp2, schID)
+		linkGroupSchedule(subID, grp3, schID)
+
+		status, body := doGet(subID, schID)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status, string(body))
+		}
+
+		var groups []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body, &groups); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups) != 3 {
+			t.Fatalf("expected 3 groups, got %d", len(groups))
+		}
+
+		expectedOrder := []string{grp1, grp2, grp3}
+		seen := make(map[string]bool)
+		for i, g := range groups {
+			if g.ID != expectedOrder[i] {
+				t.Errorf("index %d: expected group ID %s, got %s", i, expectedOrder[i], g.ID)
+			}
+			if seen[g.ID] {
+				t.Errorf("duplicate group returned: %s", g.ID)
+			}
+			seen[g.ID] = true
+		}
+	})
+
+	// Test 6 — Device counts
+	tRun(t, "TC-SCHED-GROUPS-006", "Device counts correctly aggregated for zero and non-zero devices", func(t *testing.T) {
+		subID := uuid.New().String()
+		schID := uuid.New().String()
+		insertSchedule(subID, schID, "Device Count Schedule", 1)
+
+		grpZero := uuid.New().String()
+		grpOne := uuid.New().String()
+		grpMulti := uuid.New().String()
+
+		insertGroup(subID, grpZero, "Group Zero", 1)
+		insertGroup(subID, grpOne, "Group One", 2)
+		insertGroup(subID, grpMulti, "Group Multi", 3)
+
+		linkGroupSchedule(subID, grpZero, schID)
+		linkGroupSchedule(subID, grpOne, schID)
+		linkGroupSchedule(subID, grpMulti, schID)
+
+		insertDevice(subID, grpOne, "00:11:22:33:44:01")
+		insertDevice(subID, grpMulti, "00:11:22:33:44:02")
+		insertDevice(subID, grpMulti, "00:11:22:33:44:03")
+		insertDevice(subID, grpMulti, "00:11:22:33:44:04")
+
+		status, body := doGet(subID, schID)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status, string(body))
+		}
+
+		var groups []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body, &groups); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups) != 3 {
+			t.Fatalf("expected 3 groups, got %d", len(groups))
+		}
+
+		counts := make(map[string]int)
+		for _, g := range groups {
+			counts[g.ID] = g.DeviceCount
+		}
+
+		if counts[grpZero] != 0 {
+			t.Errorf("expected 0 devices for grpZero, got %d", counts[grpZero])
+		}
+		if counts[grpOne] != 1 {
+			t.Errorf("expected 1 device for grpOne, got %d", counts[grpOne])
+		}
+		if counts[grpMulti] != 3 {
+			t.Errorf("expected 3 devices for grpMulti, got %d", counts[grpMulti])
+		}
+	})
+
+	// Test 7 — Multiple schedules isolation
+	tRun(t, "TC-SCHED-GROUPS-007", "Multiple schedules isolation ensures only target schedule groups returned", func(t *testing.T) {
+		subID := uuid.New().String()
+		sch1 := uuid.New().String()
+		sch2 := uuid.New().String()
+
+		insertSchedule(subID, sch1, "Schedule 1", 1)
+		insertSchedule(subID, sch2, "Schedule 2", 2)
+
+		grp1 := uuid.New().String()
+		grp2 := uuid.New().String()
+
+		insertGroup(subID, grp1, "Group 1", 1)
+		insertGroup(subID, grp2, "Group 2", 2)
+
+		linkGroupSchedule(subID, grp1, sch1)
+		linkGroupSchedule(subID, grp2, sch2)
+
+		// Requesting sch1 must return only grp1
+		status1, body1 := doGet(subID, sch1)
+		if status1 != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status1, string(body1))
+		}
+		var groups1 []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body1, &groups1); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups1) != 1 {
+			t.Fatalf("expected exactly 1 group for sch1, got %d", len(groups1))
+		}
+		if groups1[0].ID != grp1 {
+			t.Errorf("expected group %s for sch1, got %s", grp1, groups1[0].ID)
+		}
+
+		// Requesting sch2 must return only grp2
+		status2, body2 := doGet(subID, sch2)
+		if status2 != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status2, string(body2))
+		}
+		var groups2 []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body2, &groups2); err != nil {
+			t.Fatalf("failed to unmarshal response: %v", err)
+		}
+		if len(groups2) != 1 {
+			t.Fatalf("expected exactly 1 group for sch2, got %d", len(groups2))
+		}
+		if groups2[0].ID != grp2 {
+			t.Errorf("expected group %s for sch2, got %s", grp2, groups2[0].ID)
+		}
+	})
+
+	// Test 8 — Device changes reflected
+	tRun(t, "TC-SCHED-GROUPS-008", "Device count dynamically reflects changes when devices added or removed", func(t *testing.T) {
+		subID := uuid.New().String()
+		schID := uuid.New().String()
+		grpID := uuid.New().String()
+
+		insertSchedule(subID, schID, "Dynamic Count Schedule", 1)
+		insertGroup(subID, grpID, "Dynamic Group", 1)
+		linkGroupSchedule(subID, grpID, schID)
+
+		// 1. Initial count with 2 devices
+		insertDevice(subID, grpID, "00:11:22:33:44:A1")
+		insertDevice(subID, grpID, "00:11:22:33:44:A2")
+
+		status1, body1 := doGet(subID, schID)
+		if status1 != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status1, string(body1))
+		}
+		var groups1 []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body1, &groups1); err != nil || len(groups1) != 1 {
+			t.Fatalf("failed to unmarshal or unexpected groups: %v", err)
+		}
+		if groups1[0].DeviceCount != 2 {
+			t.Errorf("expected device_count == 2, got %d", groups1[0].DeviceCount)
+		}
+
+		// 2. Remove one device
+		_, err := dbConn.Pool.Exec(ctx, "DELETE FROM pc_group_devices WHERE subscriber_id = $1 AND client_mac = '00:11:22:33:44:A1'::macaddr", subID)
+		if err != nil {
+			t.Fatalf("failed to delete device: %v", err)
+		}
+
+		status2, body2 := doGet(subID, schID)
+		if status2 != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status2, string(body2))
+		}
+		var groups2 []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body2, &groups2); err != nil || len(groups2) != 1 {
+			t.Fatalf("failed to unmarshal or unexpected groups: %v", err)
+		}
+		if groups2[0].DeviceCount != 1 {
+			t.Errorf("expected device_count == 1 after removing a device, got %d", groups2[0].DeviceCount)
+		}
+
+		// 3. Add two more devices (total now 3)
+		insertDevice(subID, grpID, "00:11:22:33:44:A3")
+		insertDevice(subID, grpID, "00:11:22:33:44:A4")
+
+		status3, body3 := doGet(subID, schID)
+		if status3 != http.StatusOK {
+			t.Fatalf("expected status 200, got %d. Body: %s", status3, string(body3))
+		}
+		var groups3 []models.GroupWithDeviceCount
+		if err := json.Unmarshal(body3, &groups3); err != nil || len(groups3) != 1 {
+			t.Fatalf("failed to unmarshal or unexpected groups: %v", err)
+		}
+		if groups3[0].DeviceCount != 3 {
+			t.Errorf("expected device_count == 3 after adding devices, got %d", groups3[0].DeviceCount)
+		}
+	})
+}

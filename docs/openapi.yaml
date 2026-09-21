@@ -366,6 +366,26 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/StorageFailure' }
+  /api/v1/subscribers/{subscriber_id}/schedules/{schedule_id}/groups:
+    get:
+      summary: List groups associated with a schedule
+      description: Returns the groups associated with the specified schedule for the subscriber, ordered by config_index ASC. Includes device_count for each group. Returns an empty array if the schedule exists but has no associated groups.
+      parameters:
+        - $ref: '#/components/parameters/SubscriberIdPath'
+        - $ref: '#/components/parameters/ScheduleIdPath'
+      responses:
+        '200':
+          description: Groups associated with the schedule
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupListItem'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/StorageFailure' }
   /api/v1/subscribers/{subscriber_id}/groups/{group_id}/schedules:
     get:
       summary: List group-schedule links

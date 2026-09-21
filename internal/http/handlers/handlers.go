@@ -1429,6 +1429,77 @@ func (h *ServiceHandler) DeleteSchedule(c fiber.Ctx) error {
 	})
 }
 
+func (h *ServiceHandler) ListScheduleGroups(c fiber.Ctx) error {
+	subID := c.Params("subscriber_id")
+	schID := c.Params("schedule_id")
+	if !validateUUID(subID) || !validateUUID(schID) {
+		return sendError(c, fiber.StatusBadRequest, "invalid_request", "Invalid UUID format", nil)
+	}
+
+	var exists bool
+	err := h.DB.Pool.QueryRow(c.Context(), "SELECT EXISTS(SELECT 1 FROM pc_schedules WHERE subscriber_id = $1 AND id = $2)", subID, schID).Scan(&exists)
+	if err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+	if !exists {
+		return sendError(c, fiber.StatusNotFound, "schedule_not_found", "Schedule not found", nil)
+	}
+
+	// Aggregate only devices belonging to groups in this schedule.
+	rows, err := h.DB.Pool.Query(c.Context(), `
+		SELECT
+			g.id,
+			g.subscriber_id,
+			g.config_index,
+			g.name,
+			g.description,
+			g.created_at,
+			g.updated_at,
+			COALESCE(dc.device_count, 0) AS device_count
+		FROM pc_groups g
+		JOIN pc_group_schedules gs
+			ON gs.subscriber_id = g.subscriber_id
+			AND gs.group_id = g.id
+		LEFT JOIN (
+			SELECT
+				d.group_id,
+				COUNT(*) AS device_count
+			FROM pc_group_devices d
+			JOIN pc_group_schedules gs2
+				ON gs2.subscriber_id = d.subscriber_id
+			   AND gs2.group_id = d.group_id
+			WHERE d.subscriber_id = $1
+			  AND gs2.schedule_id = $2
+			GROUP BY d.group_id
+		) dc ON dc.group_id = g.id
+		WHERE gs.subscriber_id = $1
+			AND gs.schedule_id = $2
+		ORDER BY g.config_index ASC
+	`, subID, schID)
+	if err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+	defer rows.Close()
+
+	var groups []models.GroupWithDeviceCount
+	for rows.Next() {
+		var g models.GroupWithDeviceCount
+		if err := rows.Scan(&g.ID, &g.SubscriberID, &g.GroupConfigIndex, &g.Name, &g.Description,
+			&g.CreatedAt, &g.UpdatedAt, &g.DeviceCount); err != nil {
+			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+		}
+		groups = append(groups, g)
+	}
+	if err := rows.Err(); err != nil {
+		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+	}
+
+	if groups == nil {
+		groups = []models.GroupWithDeviceCount{}
+	}
+	return c.JSON(groups)
+}
+
 // Group-Schedule Link Endpoints
 
 func (h *ServiceHandler) ListLinkedSchedules(c fiber.Ctx) error {
