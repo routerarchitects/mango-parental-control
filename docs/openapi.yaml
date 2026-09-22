@@ -978,13 +978,13 @@ components:
     ConfigRawResponse:
       type: object
       required: [config-raw]
-      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response (either as `null` for no-op changes, an empty array `[]` when policy is cleared, or a populated array containing the full parental-control-owned snapshot). Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
+      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response. `config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests (or `null` for no-op changes where no effective configuration applies, or an empty array `[]` when policy is cleared). Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
       properties:
         config-raw:
           type: array
           minItems: 0
           nullable: true
-          description: Ordered full parental-control command snapshot. This property is always present in the response. Depending on the write result, it will be `null` (for no-op changes), an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
+          description: Ordered full parental-control command snapshot. This property is always present in the response. `config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests. Depending on the write result, it will be `null` (for no-op changes where no effective configuration applies), an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
           items:
             $ref: '#/components/schemas/ConfigRawCommand'
     GroupWriteResponse:
@@ -993,7 +993,7 @@ components:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/Group'
     GroupDeviceWriteResponse:
-      description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
+      description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse` (`config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests).
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - type: object
