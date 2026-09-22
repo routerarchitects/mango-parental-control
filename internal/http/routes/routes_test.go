@@ -2208,13 +2208,21 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				if dbCount != 2 {
 					t.Errorf("expected 2 devices in DB, found %d", dbCount)
 				}
+
+				// Capture policy_hash to verify it remains unchanged during subsequent idempotent retry
+				var initialHash string
+				if err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&initialHash); err == nil {
+					vars["initialPolicyHash"] = initialHash
+				}
 			},
 		},
 		// Test 4 — Idempotent / mixed assignment:
-		// Step 4a: Repeat same request -> no duplicate rows, config-raw null
+		// Step 4a: Repeat same request -> no duplicate rows, returns effective config-raw, policy_hash unchanged
 		{
 			ID:             "TC-ADD-DEVICES-IDEMPOTENT-REPEAT",
-			Desc:           "Repeat same bulk request - idempotent, config-raw is null",
+			Desc:           "Repeat same bulk request - idempotent, returns effective config-raw and preserves policy_hash",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:01","02:00:00:00:00:02"]}`,
@@ -2227,8 +2235,8 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				if len(resp.Devices) != 2 {
 					t.Fatalf("expected 2 devices in response, got %d", len(resp.Devices))
 				}
-				if resp.ConfigRaw != nil {
-					t.Errorf("expected nil config-raw for idempotent request, got %v", resp.ConfigRaw)
+				if len(resp.ConfigRaw) == 0 {
+					t.Errorf("expected effective config-raw for idempotent request, got empty")
 				}
 
 				// Verify DB count still 2
@@ -2241,6 +2249,20 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				}
 				if dbCount != 2 {
 					t.Errorf("expected 2 devices in DB, found %d", dbCount)
+				}
+
+				// Verify policy_hash was NOT modified during idempotent request (proves renderConfigRaw was used, not handleConfigRaw)
+				if initialHash, ok := vars["initialPolicyHash"]; ok && initialHash != "" {
+					var currentHash string
+					err = dbConn.Pool.QueryRow(context.Background(),
+						"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
+						vars["subID"]).Scan(&currentHash)
+					if err != nil {
+						t.Fatalf("failed to query pc_policy_state: %v", err)
+					}
+					if currentHash != initialHash {
+						t.Errorf("expected policy_hash to remain unchanged (%s), but got %s", initialHash, currentHash)
+					}
 				}
 			},
 		},

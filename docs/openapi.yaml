@@ -211,7 +211,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Add devices to group
-      description: Assign one or more devices (MAC addresses, at most 100) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes.
+      description: Assign one or more devices (MAC addresses, at most 100) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes. An idempotent assignment may return the current effective `config-raw` snapshot so callers can reconcile a previous unsuccessful configuration delivery.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'

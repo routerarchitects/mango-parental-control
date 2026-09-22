@@ -1028,11 +1028,18 @@ func (h *ServiceHandler) AddDevice(c fiber.Ctx) error {
 		return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 	}
 
-	// Trigger config-raw generation only if state changed (new devices inserted)
 	var cfgRaw []models.ConfigRawCommand
 	if newCount > 0 {
 		var err error
 		cfgRaw, _, err = handleConfigRaw(c.Context(), h.DB, subID)
+		if err != nil {
+			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
+		}
+	} else {
+		// Idempotent assignment: no DB state changed, but return the effective
+		// config-raw so the caller can reconcile a previous delivery failure.
+		var err error
+		cfgRaw, err = renderConfigRaw(c.Context(), h.DB, subID)
 		if err != nil {
 			return sendError(c, fiber.StatusInternalServerError, "storage_failure", err.Error(), nil)
 		}
