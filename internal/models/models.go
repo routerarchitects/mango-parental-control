@@ -116,8 +116,7 @@ type GroupWriteResponse struct {
 	ConfigRaw []ConfigRawCommand `json:"config-raw"`
 }
 
-// GroupDeviceWriteResponse represents the response for group device assignment
-// GroupDeviceWriteResponse represents GroupDevice + ConfigRawResponse fields inline for v1
+// GroupDeviceWriteResponse represents the v1 response for group device assignment.
 type GroupDeviceWriteResponse struct {
 	GroupDevice
 	ConfigRaw []ConfigRawCommand `json:"config-raw"`

@@ -741,7 +741,7 @@ components:
       properties:
         client_macs:
           type: array
-          description: List of client MAC addresses to assign to the group. Maximum number of devices that can be submitted in a single bulk request is 100. All items must be valid MAC addresses and di stinct.
+          description: List of client MAC addresses to assign to the group. Maximum number of devices that can be submitted in a single bulk request is 100. All items must be valid MAC addresses and distinct.
           minItems: 1
           maxItems: 100
           uniqueItems: true
