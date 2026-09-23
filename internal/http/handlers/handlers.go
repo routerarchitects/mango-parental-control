@@ -903,22 +903,22 @@ type deviceAssignmentResult struct {
 }
 
 func (h *ServiceHandler) assignDevicesToGroup(ctx context.Context, subID, gID string, normalizedMACs []string) (*deviceAssignmentResult, error) {
-	// Check if group exists for this subscriber
-	var exists bool
-	err := h.DB.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pc_groups WHERE subscriber_id = $1 AND id = $2)", subID, gID).Scan(&exists)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errGroupNotFound
-	}
-
 	// Begin atomic transaction
 	tx, err := h.DB.Pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+
+	// Check if group exists for this subscriber inside the transaction
+	var exists bool
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pc_groups WHERE subscriber_id = $1 AND id = $2)", subID, gID).Scan(&exists)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errGroupNotFound
+	}
 
 	// Find existing assignments for all requested MACs
 	type existingDevice struct {
