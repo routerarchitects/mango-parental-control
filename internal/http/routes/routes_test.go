@@ -2209,13 +2209,24 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 					t.Errorf("expected 2 devices in DB, found %d", dbCount)
 				}
 
-				// Capture policy_hash to verify it remains unchanged during subsequent idempotent retry
+				// Capture effective config-raw and policy_hash as required preconditions
+				// to verify they remain identical during subsequent idempotent retry.
+				cfgBytes, err := json.Marshal(resp.ConfigRaw)
+				if err != nil {
+					t.Fatalf("failed to marshal initial config-raw: %v", err)
+				}
+				vars["initialConfigRaw"] = string(cfgBytes)
+
 				var initialHash string
 				if err := dbConn.Pool.QueryRow(context.Background(),
 					"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
-					vars["subID"]).Scan(&initialHash); err == nil {
-					vars["initialPolicyHash"] = initialHash
+					vars["subID"]).Scan(&initialHash); err != nil {
+					t.Fatalf("failed to query initial policy_hash: %v", err)
 				}
+				if initialHash == "" {
+					t.Fatalf("initial policy_hash must not be empty after state-changing assignment")
+				}
+				vars["initialPolicyHash"] = initialHash
 			},
 		},
 		// Test 4 — Idempotent / mixed assignment:
@@ -2251,18 +2262,34 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 					t.Errorf("expected 2 devices in DB, found %d", dbCount)
 				}
 
-				// Verify policy_hash was NOT modified during idempotent request (proves renderConfigRaw was used, not handleConfigRaw)
-				if initialHash, ok := vars["initialPolicyHash"]; ok && initialHash != "" {
-					var currentHash string
-					err = dbConn.Pool.QueryRow(context.Background(),
-						"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
-						vars["subID"]).Scan(&currentHash)
-					if err != nil {
-						t.Fatalf("failed to query pc_policy_state: %v", err)
-					}
-					if currentHash != initialHash {
-						t.Errorf("expected policy_hash to remain unchanged (%s), but got %s", initialHash, currentHash)
-					}
+				// Verify the returned config-raw exactly matches the effective configuration snapshot
+				expectedConfigRaw, ok := vars["initialConfigRaw"]
+				if !ok || expectedConfigRaw == "" {
+					t.Fatalf("precondition missing: initialConfigRaw not captured")
+				}
+				idempotentCfgBytes, err := json.Marshal(resp.ConfigRaw)
+				if err != nil {
+					t.Fatalf("failed to marshal idempotent config-raw: %v", err)
+				}
+				if string(idempotentCfgBytes) != expectedConfigRaw {
+					t.Errorf("expected idempotent config-raw to match initial effective config-raw:\nexpected: %s\ngot: %s", expectedConfigRaw, string(idempotentCfgBytes))
+				}
+
+				// Idempotent retries render the current effective configuration but must not
+				// create a new policy change or modify the stored policy_hash.
+				expectedHash, ok := vars["initialPolicyHash"]
+				if !ok || expectedHash == "" {
+					t.Fatalf("precondition missing: initialPolicyHash not captured")
+				}
+				var currentHash string
+				err = dbConn.Pool.QueryRow(context.Background(),
+					"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&currentHash)
+				if err != nil {
+					t.Fatalf("failed to query pc_policy_state after idempotent request: %v", err)
+				}
+				if currentHash != expectedHash {
+					t.Errorf("expected policy_hash to remain unchanged (%s), but got %s", expectedHash, currentHash)
 				}
 			},
 		},
