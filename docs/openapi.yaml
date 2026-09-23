@@ -211,7 +211,7 @@ paths:
         '500': { $ref: '#/components/responses/StorageFailure' }
     post:
       summary: Add devices to group
-      description: Assign one or more devices (MAC addresses, at most 100) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field, which will contain the updated commands if the effective policy snapshot changes, or `null` for no-op changes. An idempotent assignment may return the current effective `config-raw` snapshot so callers can reconcile a previous unsuccessful configuration delivery.
+      description: Assign one or more devices (MAC addresses, at most 100) to a group using `client_macs`. One MAC address can belong to only one group per subscriber. Attempting to assign an already-assigned MAC to another group returns a 409 Conflict error and no devices are assigned. The response always contains the `config-raw` field. `config-raw` contains the updated effective configuration when the policy changes, and contains the current effective configuration for an idempotent assignment when one exists. It is `null` only when no effective configuration applies. An empty array `[]` indicates that the effective policy is cleared.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
         - $ref: '#/components/parameters/GroupIdPath'
@@ -978,13 +978,13 @@ components:
     ConfigRawResponse:
       type: object
       required: [config-raw]
-      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response. `config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests (or `null` for no-op changes where no effective configuration applies, or an empty array `[]` when policy is cleared). Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
+      description: Successful write response extension. Write operations return `200 OK`. The `config-raw` property is always present in the response. `config-raw` contains the updated effective configuration when the policy changes, and contains the current effective configuration for an idempotent assignment when one exists. It is `null` only when no effective configuration applies. An empty array `[]` indicates that the effective policy is cleared. Command tuple shape follows the upstream schema reference at `https://github.com/Telecominfraproject/wlan-ucentral-schema/blob/main/schema/config-raw.yml`.
       properties:
         config-raw:
           type: array
           minItems: 0
           nullable: true
-          description: Ordered full parental-control command snapshot. This property is always present in the response. `config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests. Depending on the write result, it will be `null` (for no-op changes where no effective configuration applies), an empty array `[]` (to signal that all parental-control-owned sections should be cleared on the device), or a populated array containing every active parental-control-owned command. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
+          description: Ordered full parental-control command snapshot. This property is always present in the response. `config-raw` contains the updated effective configuration when the policy changes, and contains the current effective configuration for an idempotent assignment when one exists. It is `null` only when no effective configuration applies. An empty array `[]` indicates that the effective policy is cleared. Commands shall be emitted deterministically for identical stored subscriber policy state, with group rendering ordered by `group_config_index`, schedule rendering ordered by `schedule_config_index`, and MAC lists ordered by normalized ascending MAC value.
           items:
             $ref: '#/components/schemas/ConfigRawCommand'
     GroupWriteResponse:
@@ -993,7 +993,7 @@ components:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - $ref: '#/components/schemas/Group'
     GroupDeviceWriteResponse:
-      description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse` (`config-raw` contains the updated configuration when the policy changes, and may contain the current effective configuration for idempotent requests).
+      description: Group-device write response. Always includes `config-raw` through `ConfigRawResponse`. `config-raw` contains the updated effective configuration when the policy changes, and contains the current effective configuration for an idempotent assignment when one exists. It is `null` only when no effective configuration applies. An empty array `[]` indicates that the effective policy is cleared.
       allOf:
         - $ref: '#/components/schemas/ConfigRawResponse'
         - type: object

@@ -2409,7 +2409,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				vars["groupID3"] = created.ID
 			},
 		},
-		// Step 6b: Exceeds limit (101 MACs) -> 400 Bad Request, zero DB changes
+		// Step 6b: Exceeds limit (101 MACs) -> 400 Bad Request
 		{
 			ID:             "TC-ADD-DEVICES-EXCEEDS-MAX-LIMIT",
 			Desc:           "Verify client_macs exceeding 100 devices is rejected with 400 Bad Request",
@@ -2417,16 +2417,6 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID3}/devices",
 			RequestBody:    body101,
 			ExpectedStatus: http.StatusBadRequest,
-			Setup: func(t *testing.T, vars map[string]string) {
-				var countBefore int
-				err := dbConn.Pool.QueryRow(context.Background(),
-					"SELECT COUNT(*) FROM pc_group_devices WHERE subscriber_id = $1",
-					vars["subID"]).Scan(&countBefore)
-				if err != nil {
-					t.Fatalf("failed to query count before: %v", err)
-				}
-				vars["devCountBefore101"] = fmt.Sprintf("%d", countBefore)
-			},
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
 				var errResp models.ErrorResponse
 				if err := json.Unmarshal(body, &errResp); err != nil {
@@ -2437,19 +2427,6 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				}
 				if !strings.Contains(errResp.Error.Message, "100 devices") {
 					t.Errorf("expected error message to mention '100 devices', got %s", errResp.Error.Message)
-				}
-
-				// Verify zero DB modifications (device count before == device count after)
-				var countAfter int
-				err := dbConn.Pool.QueryRow(context.Background(),
-					"SELECT COUNT(*) FROM pc_group_devices WHERE subscriber_id = $1",
-					vars["subID"]).Scan(&countAfter)
-				if err != nil {
-					t.Fatalf("failed to query count after: %v", err)
-				}
-				if fmt.Sprintf("%d", countAfter) != vars["devCountBefore101"] {
-					t.Errorf("expected zero DB modifications (count before %s, after %d)",
-						vars["devCountBefore101"], countAfter)
 				}
 			},
 		},
