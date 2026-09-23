@@ -42,6 +42,11 @@ type GroupDevice struct {
 
 // GroupDeviceCreateRequest payload for POST /api/v1/subscribers/{subscriber_id}/groups/{group_id}/devices
 type GroupDeviceCreateRequest struct {
+	ClientMAC string `json:"client_mac"`
+}
+
+// GroupDeviceBulkCreateRequest payload for POST /api/v2/subscribers/{subscriber_id}/groups/{group_id}/devices
+type GroupDeviceBulkCreateRequest struct {
 	ClientMACs []string `json:"client_macs"`
 }
 
@@ -112,7 +117,14 @@ type GroupWriteResponse struct {
 }
 
 // GroupDeviceWriteResponse represents the response for group device assignment
+// GroupDeviceWriteResponse represents GroupDevice + ConfigRawResponse fields inline for v1
 type GroupDeviceWriteResponse struct {
+	GroupDevice
+	ConfigRaw []ConfigRawCommand `json:"config-raw"`
+}
+
+// GroupDeviceBulkWriteResponse represents the response for bulk group device assignment for v2
+type GroupDeviceBulkWriteResponse struct {
 	Devices   []GroupDevice      `json:"devices"`
 	ConfigRaw []ConfigRawCommand `json:"config-raw"`
 }

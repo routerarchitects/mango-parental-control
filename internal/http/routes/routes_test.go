@@ -252,7 +252,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add device successfully",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
-			RequestBody:    `{"client_macs":["{macAddress1}"]}`,
+			RequestBody:    `{"client_mac":"{macAddress1}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		{
@@ -339,7 +339,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add second device successfully - updates config-raw with sorted MACs",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
-			RequestBody:    `{"client_macs":["{macAddress2}"]}`,
+			RequestBody:    `{"client_mac":"{macAddress2}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		{
@@ -430,7 +430,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add macAddress2 to groupID1",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
-			RequestBody:    `{"client_macs":["{macAddress2}"]}`,
+			RequestBody:    `{"client_mac":"{macAddress2}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		{
@@ -438,7 +438,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add device already assigned to a different group",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{otherGroupID}/devices",
-			RequestBody:    `{"client_macs":["{macAddress2}"]}`,
+			RequestBody:    `{"client_mac":"{macAddress2}"}`,
 			ExpectedStatus: http.StatusConflict,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
 				_, _ = dbConn.Pool.Exec(context.Background(), "DELETE FROM pc_groups WHERE id = $1", vars["otherGroupID"])
@@ -449,7 +449,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Invalid MAC address format in request body",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
-			RequestBody:    `{"client_macs":["invalid-mac-address"]}`,
+			RequestBody:    `{"client_mac":"invalid-mac-address"}`,
 			ExpectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -615,7 +615,15 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add device - unknown field rejection",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
-			RequestBody:    `{"client_macs":["00:11:22:33:44:55"],"unknown_field":true}`,
+			RequestBody:    `{"client_mac":"00:11:22:33:44:55","unknown_field":true}`,
+			ExpectedStatus: http.StatusBadRequest,
+		},
+		{
+			ID:             "TC-ADD-DEVICE-V1-REJECT-BULK",
+			Desc:           "v1 endpoint rejects client_macs array field",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			RequestBody:    `{"client_macs":["00:11:22:33:44:55"]}`,
 			ExpectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -1276,7 +1284,7 @@ func TestParentalControlAPI(t *testing.T) {
 			Desc:           "Add device to overlap group",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{overlapGroupID}/devices",
-			RequestBody:    `{"client_macs":["{macAddress1}"]}`,
+			RequestBody:    `{"client_mac":"{macAddress1}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		{
@@ -1465,7 +1473,7 @@ func TestSubscriberWorkflow(t *testing.T) {
 			Desc:           "Add Device To Group",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subID}/groups/{groupID}/devices",
-			RequestBody:    `{"client_macs":["{macA}"]}`,
+			RequestBody:    `{"client_mac":"{macA}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		{
@@ -1729,7 +1737,7 @@ func TestGroupDeviceCount(t *testing.T) {
 			Desc:           "Add first device to Group A1",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
-			RequestBody:    `{"client_macs":["{macA1}"]}`,
+			RequestBody:    `{"client_mac":"{macA1}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		// 6. List groups for Subscriber A -> 1 device
@@ -1755,7 +1763,7 @@ func TestGroupDeviceCount(t *testing.T) {
 			Desc:           "Add second device to Group A1",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
-			RequestBody:    `{"client_macs":["{macA2}"]}`,
+			RequestBody:    `{"client_mac":"{macA2}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		// 8. Add 3rd device to Group A1
@@ -1764,7 +1772,7 @@ func TestGroupDeviceCount(t *testing.T) {
 			Desc:           "Add third device to Group A1",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subA}/groups/{groupA1}/devices",
-			RequestBody:    `{"client_macs":["{macA3}"]}`,
+			RequestBody:    `{"client_mac":"{macA3}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		// 9. List groups for Subscriber A -> 3 devices
@@ -1874,7 +1882,7 @@ func TestGroupDeviceCount(t *testing.T) {
 			Desc:           "Add device to Subscriber B Group B1",
 			Method:         http.MethodPost,
 			URL:            "/api/v1/subscribers/{subB}/groups/{groupB1}/devices",
-			RequestBody:    `{"client_macs":["{macB1}"]}`,
+			RequestBody:    `{"client_mac":"{macB1}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
 		// 16. Verify Subscriber Isolation:
@@ -2093,12 +2101,12 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			RequestBody:    `{"schedule_id":"{schID1}"}`,
 			ExpectedStatus: http.StatusOK,
 		},
-		// Test 1 — Old field rejected: Verify {"client_mac": "..."} is rejected
+		// Test 1 — Old field rejected: Verify {"client_mac": "..."} is rejected on v2 endpoint
 		{
 			ID:             "TC-ADD-DEVICE-REJECT-OLD-FIELD",
-			Desc:           "Verify legacy client_mac field is rejected",
+			Desc:           "Verify legacy client_mac field is rejected on v2 endpoint",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_mac":"00:11:22:33:44:01"}`,
 			ExpectedStatus: http.StatusBadRequest,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2119,7 +2127,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICE-EMPTY-MACS",
 			Desc:           "Verify empty client_macs array is rejected",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":[]}`,
 			ExpectedStatus: http.StatusBadRequest,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2136,7 +2144,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICE-INVALID-MAC",
 			Desc:           "Verify invalid MAC in client_macs is rejected",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["invalid-mac"]}`,
 			ExpectedStatus: http.StatusBadRequest,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2153,7 +2161,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICE-DUPLICATE-MACS",
 			Desc:           "Verify duplicate MACs after normalization are rejected",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["00:11:22:33:44:aa","00:11:22:33:44:AA"]}`,
 			ExpectedStatus: http.StatusBadRequest,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2174,11 +2182,11 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-BULK-SUCCESS",
 			Desc:           "Bulk add multiple devices to group successfully",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:01","02:00:00:00:00:02"]}`,
 			ExpectedStatus: http.StatusOK,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var resp models.GroupDeviceWriteResponse
+				var resp models.GroupDeviceBulkWriteResponse
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("failed to unmarshal response: %v", err)
 				}
@@ -2235,11 +2243,11 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-IDEMPOTENT-REPEAT",
 			Desc:           "Repeat same bulk request - idempotent, returns effective config-raw and preserves policy_hash",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:01","02:00:00:00:00:02"]}`,
 			ExpectedStatus: http.StatusOK,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var resp models.GroupDeviceWriteResponse
+				var resp models.GroupDeviceBulkWriteResponse
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("failed to unmarshal response: %v", err)
 				}
@@ -2298,11 +2306,11 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-MIXED-ASSIGNMENT",
 			Desc:           "Mixed bulk request with existing and new device",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:01","02:00:00:00:00:03"]}`,
 			ExpectedStatus: http.StatusOK,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var resp models.GroupDeviceWriteResponse
+				var resp models.GroupDeviceBulkWriteResponse
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("failed to unmarshal response: %v", err)
 				}
@@ -2332,7 +2340,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-CONFLICT-SETUP",
 			Desc:           "Assign MAC-2 to groupID2",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID2}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID2}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:20"]}`,
 			ExpectedStatus: http.StatusOK,
 		},
@@ -2341,7 +2349,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-BULK-ROLLBACK",
 			Desc:           "Bulk conflict rolls back entire transaction",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID1}/devices",
 			RequestBody:    `{"client_macs":["02:00:00:00:00:10","02:00:00:00:00:20","02:00:00:00:00:30"]}`,
 			ExpectedStatus: http.StatusConflict,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2390,7 +2398,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				}
 			},
 		},
-		// Test 6 — Maximum devices limit (100 devices):
+		// Test 6 — Maximum bulk request size (100 devices per request):
 		// Step 6a: Create Group 3 for device limit testing
 		{
 			ID:             "TC-BULK-DEV-000-SETUP-GRP3",
@@ -2414,7 +2422,7 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 			ID:             "TC-ADD-DEVICES-EXCEEDS-MAX-LIMIT",
 			Desc:           "Verify client_macs exceeding 100 devices is rejected with 400 Bad Request",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID3}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID3}/devices",
 			RequestBody:    body101,
 			ExpectedStatus: http.StatusBadRequest,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
@@ -2433,13 +2441,13 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 		// Step 6c: Exactly at limit (100 MACs) -> 200 OK, 100 devices in response and DB
 		{
 			ID:             "TC-ADD-DEVICES-MAX-LIMIT-BOUNDARY",
-			Desc:           "Bulk add exactly 100 devices (maximum allowed) successfully",
+			Desc:           "Bulk add exactly 100 devices (maximum allowed per bulk request) successfully",
 			Method:         http.MethodPost,
-			URL:            "/api/v1/subscribers/{subID}/groups/{groupID3}/devices",
+			URL:            "/api/v2/subscribers/{subID}/groups/{groupID3}/devices",
 			RequestBody:    body100,
 			ExpectedStatus: http.StatusOK,
 			Verify: func(t *testing.T, body []byte, vars map[string]string) {
-				var resp models.GroupDeviceWriteResponse
+				var resp models.GroupDeviceBulkWriteResponse
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("failed to unmarshal response: %v", err)
 				}
@@ -2457,6 +2465,111 @@ func TestBulkGroupDeviceAssignment(t *testing.T) {
 				}
 				if dbCount != 100 {
 					t.Errorf("expected 100 devices in DB for groupID3, found %d", dbCount)
+				}
+			},
+		},
+		// Test 7 — v1 API Contract & Idempotency:
+		// Step 7a: Assign single device using v1 endpoint -> flat GroupDevice response
+		{
+			ID:             "TC-V1-ADD-DEVICE-SUCCESS",
+			Desc:           "v1 endpoint assigns single device and returns flat GroupDevice response",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			RequestBody:    `{"client_mac":"02:00:00:00:00:50"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var resp models.GroupDeviceWriteResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to unmarshal v1 response: %v", err)
+				}
+				if resp.ClientMAC != "02:00:00:00:00:50" {
+					t.Errorf("expected client_mac 02:00:00:00:00:50, got %s", resp.ClientMAC)
+				}
+				if resp.GroupID != vars["groupID1"] {
+					t.Errorf("expected group_id %s, got %s", vars["groupID1"], resp.GroupID)
+				}
+				if resp.SubscriberID != vars["subID"] {
+					t.Errorf("expected subscriber_id %s, got %s", vars["subID"], resp.SubscriberID)
+				}
+				if len(resp.ConfigRaw) == 0 {
+					t.Errorf("expected non-empty config-raw in v1 write response")
+				}
+
+				// Capture effective config-raw and policy_hash for v1 idempotency test
+				cfgBytes, err := json.Marshal(resp.ConfigRaw)
+				if err != nil {
+					t.Fatalf("failed to marshal v1 config-raw: %v", err)
+				}
+				vars["v1InitialConfigRaw"] = string(cfgBytes)
+
+				var hash string
+				if err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&hash); err != nil {
+					t.Fatalf("failed to query v1 initial policy_hash: %v", err)
+				}
+				if hash == "" {
+					t.Fatalf("v1 initial policy_hash must not be empty")
+				}
+				vars["v1InitialHash"] = hash
+			},
+		},
+		// Step 7b: Repeat identical v1 request -> idempotent, returns flat response with effective config-raw, policy_hash unchanged
+		{
+			ID:             "TC-V1-ADD-DEVICE-IDEMPOTENT",
+			Desc:           "v1 endpoint idempotent retry returns effective config-raw and preserves policy_hash",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			RequestBody:    `{"client_mac":"02:00:00:00:00:50"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var resp models.GroupDeviceWriteResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to unmarshal v1 idempotent response: %v", err)
+				}
+				if resp.ClientMAC != "02:00:00:00:00:50" {
+					t.Errorf("expected client_mac 02:00:00:00:00:50, got %s", resp.ClientMAC)
+				}
+				if len(resp.ConfigRaw) == 0 {
+					t.Fatalf("v1 idempotent response must return effective config-raw, got empty/null")
+				}
+
+				expectedCfg := vars["v1InitialConfigRaw"]
+				actualCfgBytes, err := json.Marshal(resp.ConfigRaw)
+				if err != nil {
+					t.Fatalf("failed to marshal v1 idempotent config-raw: %v", err)
+				}
+				if string(actualCfgBytes) != expectedCfg {
+					t.Errorf("expected v1 idempotent config-raw to match initial snapshot:\nexpected: %s\ngot: %s", expectedCfg, string(actualCfgBytes))
+				}
+
+				var currentHash string
+				if err := dbConn.Pool.QueryRow(context.Background(),
+					"SELECT policy_hash FROM pc_policy_state WHERE subscriber_id = $1",
+					vars["subID"]).Scan(&currentHash); err != nil {
+					t.Fatalf("failed to query pc_policy_state after v1 idempotent request: %v", err)
+				}
+				expectedHash := vars["v1InitialHash"]
+				if currentHash != expectedHash {
+					t.Errorf("expected policy_hash to remain unchanged (%s), but got %s", expectedHash, currentHash)
+				}
+			},
+		},
+		// Step 7c: v1 rejects client_macs (bulk payload)
+		{
+			ID:             "TC-V1-REJECT-BULK-PAYLOAD",
+			Desc:           "v1 endpoint rejects client_macs bulk field",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/groups/{groupID1}/devices",
+			RequestBody:    `{"client_macs":["02:00:00:00:00:51"]}`,
+			ExpectedStatus: http.StatusBadRequest,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var errResp models.ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("failed to unmarshal error response: %v", err)
+				}
+				if errResp.Error.Code != "invalid_request" {
+					t.Errorf("expected error code invalid_request, got %s", errResp.Error.Code)
 				}
 			},
 		},
