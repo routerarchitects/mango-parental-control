@@ -52,6 +52,7 @@ func registerAPIRoutes(router fiber.Router, h *handlers.ServiceHandler) {
 	// Device routes
 	router.Get("/api/v1/subscribers/:subscriber_id/groups/:group_id/devices", h.ListDevices)
 	router.Post("/api/v1/subscribers/:subscriber_id/groups/:group_id/devices", h.AddDevice)
+	router.Post("/api/v2/subscribers/:subscriber_id/groups/:group_id/devices", h.AddDevicesV2)
 	router.Get("/api/v1/subscribers/:subscriber_id/groups/:group_id/devices/:client_mac", h.GetDevice)
 	router.Delete("/api/v1/subscribers/:subscriber_id/groups/:group_id/devices/:client_mac", h.RemoveDevice)
 

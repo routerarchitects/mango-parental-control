@@ -45,6 +45,11 @@ type GroupDeviceCreateRequest struct {
 	ClientMAC string `json:"client_mac"`
 }
 
+// GroupDeviceBulkCreateRequest payload for POST /api/v2/subscribers/{subscriber_id}/groups/{group_id}/devices
+type GroupDeviceBulkCreateRequest struct {
+	ClientMACs []string `json:"client_macs"`
+}
+
 // Schedule represents a time/target restriction schedule.
 type Schedule struct {
 	ID                  string    `json:"id"`
@@ -111,9 +116,15 @@ type GroupWriteResponse struct {
 	ConfigRaw []ConfigRawCommand `json:"config-raw"`
 }
 
-// GroupDeviceWriteResponse represents GroupDevice + ConfigRawResponse fields inline
+// GroupDeviceWriteResponse represents the v1 response for group device assignment.
 type GroupDeviceWriteResponse struct {
 	GroupDevice
+	ConfigRaw []ConfigRawCommand `json:"config-raw"`
+}
+
+// GroupDeviceBulkWriteResponse represents the response for bulk group device assignment for v2
+type GroupDeviceBulkWriteResponse struct {
+	Devices   []GroupDevice      `json:"devices"`
 	ConfigRaw []ConfigRawCommand `json:"config-raw"`
 }
 
