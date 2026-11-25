@@ -254,6 +254,36 @@ func TestValidateClientAccessRequest(t *testing.T) {
 			now:        time.Date(2036, 7, 10, 0, 0, 0, 0, time.UTC),
 			wantErrSub: "Cannot create an already expired client-access time window",
 		},
+		{
+			name:       "valid ISO-8601 cross-midnight pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 23, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "valid ISO-8601 same-day pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T14:00:00","stop_date":"2036-07-08T16:00:00"}`,
+			now:        time.Date(2036, 7, 8, 14, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "invalid ISO-8601 stop before start",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-09T01:00:00","stop_date":"2036-07-08T23:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "stop_date must be strictly after start_date",
+		},
+		{
+			name:       "already-expired ISO-8601 pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 9, 2, 0, 0, 0, time.UTC),
+			wantErrSub: "Cannot create an already expired client-access time window",
+		},
+		{
+			name:       "malformed ISO-8601 format",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
 	}
 
 	for _, tt := range tests {
