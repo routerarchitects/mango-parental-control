@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -1416,6 +1417,223 @@ func TestParentalControlAPI(t *testing.T) {
 					t.Error("expected expired client-access row to be cleaned up/deleted on unpause")
 				}
 			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-001",
+			Desc:           "Create two-field ISO overnight timed pause and verify DB timestamps and single-rule config-raw",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress1}","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var resMap map[string]json.RawMessage
+				if err := json.Unmarshal(body, &resMap); err != nil {
+					t.Fatalf("failed to unmarshal response map: %v", err)
+				}
+				for _, omittedKey := range []string{"start_time", "stop_time"} {
+					if _, ok := resMap[omittedKey]; ok {
+						t.Errorf("expected %q to be omitted in two-field ISO response", omittedKey)
+					}
+				}
+
+				var res struct {
+					StartDate *string    `json:"start_date"`
+					StopDate  *string    `json:"stop_date"`
+					ConfigRaw [][]string `json:"config-raw"`
+				}
+				if err := json.Unmarshal(body, &res); err != nil {
+					t.Fatalf("unmarshal error: %v", err)
+				}
+				if res.StartDate == nil || *res.StartDate != "2036-07-08T23:00:00" || res.StopDate == nil || *res.StopDate != "2036-07-09T01:00:00" {
+					t.Errorf("unexpected ISO response boundaries: start=%v stop=%v", res.StartDate, res.StopDate)
+				}
+
+				var startDate, stopDate, startTime, stopTime *string
+				var startsAt, expiresAt *time.Time
+				err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT start_date, stop_date, start_time, stop_time, starts_at, expires_at
+					FROM pc_client_access
+					WHERE subscriber_id = $1 AND client_mac = $2
+				`, vars["subID"], normalizeMAC(vars["macAddress1"])).Scan(&startDate, &stopDate, &startTime, &stopTime, &startsAt, &expiresAt)
+				if err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				if startTime != nil || stopTime != nil {
+					t.Errorf("expected start_time/stop_time SQL NULL for ISO row, got %v / %v", startTime, stopTime)
+				}
+				wantStart := time.Date(2036, 7, 8, 23, 0, 0, 0, time.UTC)
+				wantStop := time.Date(2036, 7, 9, 1, 0, 0, 0, time.UTC)
+				if startsAt == nil || expiresAt == nil || !startsAt.Equal(wantStart) || !expiresAt.Equal(wantStop) {
+					t.Errorf("expected UTC starts_at=%v expires_at=%v, got %v / %v", wantStart, wantStop, startsAt, expiresAt)
+				}
+
+				secName := "firewall.pc_client_access_" + strings.ReplaceAll(normalizeMAC(vars["macAddress1"]), ":", "_")
+				ruleCount := 0
+				hasStartDate, hasStopDate := false, false
+				for _, cmd := range res.ConfigRaw {
+					if len(cmd) >= 3 && cmd[0] == "set" && cmd[1] == secName && cmd[2] == "rule" {
+						ruleCount++
+					}
+					if len(cmd) >= 3 && cmd[1] == secName+".start_date" && cmd[2] == "2036-07-08T23:00:00" {
+						hasStartDate = true
+					}
+					if len(cmd) >= 3 && cmd[1] == secName+".stop_date" && cmd[2] == "2036-07-09T01:00:00" {
+						hasStopDate = true
+					}
+					if len(cmd) >= 2 && (cmd[1] == secName+".start_time" || cmd[1] == secName+".stop_time") {
+						t.Errorf("unexpected time command %q in single-rule ISO config-raw", cmd[1])
+					}
+				}
+				if ruleCount != 1 || !hasStartDate || !hasStopDate {
+					t.Errorf("expected 1 ISO rule with start_date & stop_date, got count=%d start=%v stop=%v", ruleCount, hasStartDate, hasStopDate)
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-002",
+			Desc:           "Update existing ISO rule to year-rollover ISO window",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress1}","start_date":"2036-12-31T23:00:00","stop_date":"2037-01-01T01:00:00"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var startsAt, expiresAt *time.Time
+				err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT starts_at, expires_at
+					FROM pc_client_access
+					WHERE subscriber_id = $1 AND client_mac = $2
+				`, vars["subID"], normalizeMAC(vars["macAddress1"])).Scan(&startsAt, &expiresAt)
+				if err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				wantStart := time.Date(2036, 12, 31, 23, 0, 0, 0, time.UTC)
+				wantStop := time.Date(2037, 1, 1, 1, 0, 0, 0, time.UTC)
+				if startsAt == nil || expiresAt == nil || !startsAt.Equal(wantStart) || !expiresAt.Equal(wantStop) {
+					t.Errorf("expected year-rollover UTC timestamps %v..%v, got %v..%v", wantStart, wantStop, startsAt, expiresAt)
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-003",
+			Desc:           "Replace ISO timed rule in place with permanent rule",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress1}"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var startDate, stopDate, startTime, stopTime *string
+				var startsAt, expiresAt *time.Time
+				err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT start_date, stop_date, start_time, stop_time, starts_at, expires_at
+					FROM pc_client_access
+					WHERE subscriber_id = $1 AND client_mac = $2
+				`, vars["subID"], normalizeMAC(vars["macAddress1"])).Scan(&startDate, &stopDate, &startTime, &stopTime, &startsAt, &expiresAt)
+				if err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				if startDate != nil || stopDate != nil || startTime != nil || stopTime != nil || startsAt != nil || expiresAt != nil {
+					t.Errorf("expected all 6 columns NULL after ISO -> permanent replacement")
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-004",
+			Desc:           "Replace permanent rule in place with max 30-day ISO timed rule",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress1}","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:00"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var startsAt, expiresAt *time.Time
+				err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT starts_at, expires_at
+					FROM pc_client_access
+					WHERE subscriber_id = $1 AND client_mac = $2
+				`, vars["subID"], normalizeMAC(vars["macAddress1"])).Scan(&startsAt, &expiresAt)
+				if err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				if startsAt == nil || expiresAt == nil || expiresAt.Sub(*startsAt) != 30*24*time.Hour {
+					t.Errorf("expected exact 30-day UTC span in DB, got %v..%v", startsAt, expiresAt)
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-005",
+			Desc:           "Reject ISO timed window exceeding 30 days",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress1}","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:01"}`,
+			ExpectedStatus: http.StatusBadRequest,
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-006-SETUP",
+			Desc:           "Seed expired ISO row and active legacy 4-field row to verify cleanup and coexistence",
+			Method:         http.MethodGet,
+			URL:            "/livez",
+			ExpectedStatus: http.StatusOK,
+			Setup: func(t *testing.T, vars map[string]string) {
+				_, err := dbConn.Pool.Exec(context.Background(), `
+					INSERT INTO pc_client_access (
+						subscriber_id, client_mac, start_date, stop_date, start_time, stop_time,
+						starts_at, expires_at, created_at, updated_at
+					) VALUES
+						($1, '00:11:22:33:44:77', '2020-01-01T00:00:00', '2020-01-01T01:00:00', NULL, NULL, '2020-01-01T00:00:00Z', '2020-01-01T01:00:00Z', NOW(), NOW()),
+						($1, '00:11:22:33:44:88', '2036-07-08', '2036-07-09', '07:30:00', '08:00:00', NULL, NULL, NOW(), NOW())
+				`, vars["subID"])
+				if err != nil {
+					t.Fatalf("failed to seed ISO/legacy cleanup rows: %v", err)
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-006",
+			Desc:           "Cleanup deletes expired ISO row while preserving active ISO and legacy 4-field rows",
+			Method:         http.MethodPost,
+			URL:            "/api/v1/subscribers/{subID}/client-access",
+			RequestBody:    `{"client_mac":"{macAddress2}"}`,
+			ExpectedStatus: http.StatusOK,
+			Verify: func(t *testing.T, body []byte, vars map[string]string) {
+				var expiredExists, legacyExists bool
+				if err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT EXISTS(SELECT 1 FROM pc_client_access WHERE subscriber_id = $1 AND client_mac = '00:11:22:33:44:77')
+				`, vars["subID"]).Scan(&expiredExists); err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				if expiredExists {
+					t.Error("expected expired ISO row 00:11:22:33:44:77 to be deleted")
+				}
+
+				if err := dbConn.Pool.QueryRow(context.Background(), `
+					SELECT EXISTS(SELECT 1 FROM pc_client_access WHERE subscriber_id = $1 AND client_mac = '00:11:22:33:44:88')
+				`, vars["subID"]).Scan(&legacyExists); err != nil {
+					t.Fatalf("db query failed: %v", err)
+				}
+				if !legacyExists {
+					t.Error("expected active legacy 4-field row 00:11:22:33:44:88 to be preserved")
+				}
+			},
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-TEARDOWN-1",
+			Desc:           "Clean up ISO test rule for macAddress1",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subID}/client-access/{macAddress1}",
+			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-TEARDOWN-2",
+			Desc:           "Clean up permanent test rule for macAddress2",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subID}/client-access/{macAddress2}",
+			ExpectedStatus: http.StatusOK,
+		},
+		{
+			ID:             "TC-PAUSE-CLIENT-ISO-TEARDOWN-3",
+			Desc:           "Clean up seeded legacy 4-field rule 00:11:22:33:44:88",
+			Method:         http.MethodDelete,
+			URL:            "/api/v1/subscribers/{subID}/client-access/00:11:22:33:44:88",
+			ExpectedStatus: http.StatusOK,
 		},
 	}
 

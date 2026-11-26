@@ -254,6 +254,102 @@ func TestValidateClientAccessRequest(t *testing.T) {
 			now:        time.Date(2036, 7, 10, 0, 0, 0, 0, time.UTC),
 			wantErrSub: "Cannot create an already expired client-access time window",
 		},
+		{
+			name:       "valid ISO-8601 cross-midnight pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 23, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "valid ISO-8601 same-day pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T14:00:00","stop_date":"2036-07-08T16:00:00"}`,
+			now:        time.Date(2036, 7, 8, 14, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "invalid ISO-8601 stop before start",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-09T01:00:00","stop_date":"2036-07-08T23:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "stop_date must be strictly after start_date",
+		},
+		{
+			name:       "already-expired ISO-8601 pause",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 9, 2, 0, 0, 0, time.UTC),
+			wantErrSub: "Cannot create an already expired client-access time window",
+		},
+		{
+			name:       "malformed ISO-8601 format",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "ISO-8601 fractional seconds rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00.123","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "ISO-8601 UTC Z offset rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00Z","stop_date":"2036-07-09T01:00:00Z"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "ISO-8601 numeric timezone offset rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00+05:30","stop_date":"2036-07-09T01:00:00+05:30"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "space-separated combined date-time rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08 23:00:00","stop_date":"2036-07-09 01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Missing required fields",
+		},
+		{
+			name:       "mixed ISO start_date and date-only stop_date rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "mixed ISO dates with explicit null start_time rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00","start_time":null}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Missing required fields",
+		},
+		{
+			name:       "malformed slash ISO delimiter rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036/07/08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "valid ISO-8601 minimum 1-second duration",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-07-08T12:00:01"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "valid ISO-8601 exact 30-day maximum duration",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:00"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "ISO-8601 duration exceeding 30 days by 1 second rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:01"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "must not exceed 30 days",
+		},
+		{
+			name:       "ISO-8601 duration exceeding 30 days by 1 day rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-08T12:00:00"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "must not exceed 30 days",
+		},
 	}
 
 	for _, tt := range tests {
@@ -274,4 +370,128 @@ func TestValidateClientAccessRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateAndComputeTimestampsBoundaries(t *testing.T) {
+	now := time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		body      string
+		now       time.Time
+		wantStart *time.Time
+		wantStop  *time.Time
+	}{
+		{
+			name:      "permanent mode yields nil timestamps",
+			body:      `{"client_mac":"AA:BB:CC:DD:EE:FF"}`,
+			now:       now,
+			wantStart: nil,
+			wantStop:  nil,
+		},
+		{
+			name:      "exact overnight ISO interval",
+			body:      `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:       now,
+			wantStart: timePtr(time.Date(2036, 7, 8, 23, 0, 0, 0, time.UTC)),
+			wantStop:  timePtr(time.Date(2036, 7, 9, 1, 0, 0, 0, time.UTC)),
+		},
+		{
+			name:      "year rollover ISO interval",
+			body:      `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-12-31T23:00:00","stop_date":"2037-01-01T01:00:00"}`,
+			now:       time.Date(2036, 12, 31, 22, 55, 0, 0, time.UTC),
+			wantStart: timePtr(time.Date(2036, 12, 31, 23, 0, 0, 0, time.UTC)),
+			wantStop:  timePtr(time.Date(2037, 1, 1, 1, 0, 0, 0, time.UTC)),
+		},
+		{
+			name:      "exact 30-day maximum ISO duration",
+			body:      `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:00"}`,
+			now:       now,
+			wantStart: timePtr(time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC)),
+			wantStop:  timePtr(time.Date(2036, 8, 7, 12, 0, 0, 0, time.UTC)),
+		},
+		{
+			name:      "legacy four-field window computes UTC timestamps",
+			body:      `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08","stop_date":"2036-07-09","start_time":"07:30:00","stop_time":"08:00:00"}`,
+			now:       now,
+			wantStart: timePtr(time.Date(2036, 7, 8, 7, 30, 0, 0, time.UTC)),
+			wantStop:  timePtr(time.Date(2036, 7, 8, 8, 0, 0, 0, time.UTC)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req models.ClientAccessCreateRequest
+			if err := json.Unmarshal([]byte(tt.body), &req); err != nil {
+				t.Fatalf("unmarshal failed: %v", err)
+			}
+			gotStart, gotStop, err := validateAndComputeTimestamps([]byte(tt.body), req, tt.now)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if (gotStart == nil) != (tt.wantStart == nil) || (gotStart != nil && !gotStart.Equal(*tt.wantStart)) {
+				t.Errorf("startsAt = %v, want %v", gotStart, tt.wantStart)
+			}
+			if (gotStop == nil) != (tt.wantStop == nil) || (gotStop != nil && !gotStop.Equal(*tt.wantStop)) {
+				t.Errorf("expiresAt = %v, want %v", gotStop, tt.wantStop)
+			}
+		})
+	}
+}
+
+func TestClientAccessExactExpiry(t *testing.T) {
+	isoStop := time.Date(2036, 7, 9, 1, 0, 0, 0, time.UTC)
+	legStop := time.Date(2036, 7, 8, 8, 0, 0, 0, time.UTC)
+
+	t.Run("isClientAccessExpired ISO exact boundary", func(t *testing.T) {
+		if isClientAccessExpired(isoStop.Add(-time.Second), "2036-07-08T23:00:00", "2036-07-09T01:00:00") {
+			t.Error("expected ISO rule to still be active 1s before stop")
+		}
+		if !isClientAccessExpired(isoStop, "2036-07-08T23:00:00", "2036-07-09T01:00:00") {
+			t.Error("expected ISO rule to be expired at exact stop timestamp")
+		}
+		if !isClientAccessExpired(isoStop.Add(time.Second), "2036-07-08T23:00:00", "2036-07-09T01:00:00") {
+			t.Error("expected ISO rule to be expired 1s after stop")
+		}
+	})
+
+	t.Run("isClientAccessExpired legacy exact boundary", func(t *testing.T) {
+		if isClientAccessExpired(legStop.Add(-time.Second), "2036-07-08", "08:00:00") {
+			t.Error("expected legacy rule to still be active 1s before stop")
+		}
+		if !isClientAccessExpired(legStop, "2036-07-08", "08:00:00") {
+			t.Error("expected legacy rule to be expired at exact stop timestamp")
+		}
+		if !isClientAccessExpired(legStop.Add(time.Second), "2036-07-08", "08:00:00") {
+			t.Error("expected legacy rule to be expired 1s after stop")
+		}
+	})
+
+	t.Run("validateAndComputeTimestamps rejects exact stop timestamp and accepts 1s prior", func(t *testing.T) {
+		isoBody := `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00"}`
+		var isoReq models.ClientAccessCreateRequest
+		_ = json.Unmarshal([]byte(isoBody), &isoReq)
+
+		if _, _, err := validateAndComputeTimestamps([]byte(isoBody), isoReq, isoStop.Add(-time.Second)); err != nil {
+			t.Errorf("expected ISO request 1s before stop to succeed, got: %v", err)
+		}
+		if _, _, err := validateAndComputeTimestamps([]byte(isoBody), isoReq, isoStop); err == nil || !strings.Contains(err.Error(), "already expired") {
+			t.Errorf("expected ISO request at exact stop timestamp to fail as expired, got: %v", err)
+		}
+
+		legBody := `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08","stop_date":"2036-07-09","start_time":"07:30:00","stop_time":"08:00:00"}`
+		var legReq models.ClientAccessCreateRequest
+		_ = json.Unmarshal([]byte(legBody), &legReq)
+
+		if _, _, err := validateAndComputeTimestamps([]byte(legBody), legReq, legStop.Add(-time.Second)); err != nil {
+			t.Errorf("expected legacy request 1s before stop to succeed, got: %v", err)
+		}
+		if _, _, err := validateAndComputeTimestamps([]byte(legBody), legReq, legStop); err == nil || !strings.Contains(err.Error(), "already expired") {
+			t.Errorf("expected legacy request at exact stop timestamp to fail as expired, got: %v", err)
+		}
+	})
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }
