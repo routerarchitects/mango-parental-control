@@ -227,6 +227,7 @@ For timed blocks in the current phase:
 - `start_date` shall be the intended UTC block date, `stop_date` shall be exactly the next UTC calendar date, and `start_time` and `stop_time` shall describe the active interval on the intended UTC block date, with `stop_time` greater than `start_time`.
 - The next-day `stop_date` is required by the supported firewall request shape and does not represent a subscriber-facing multi-day block.
 - For timed requests, the parental-control service shall persist and render the caller-prepared UTC enforcement window without performing additional timezone conversion.
+- **Gateway OS Timezone Requirement:** Because OpenWrt `fw4`/`nftables` evaluates offset-free `meta time` boundary values using the router OS `/etc/TZ` (rejecting timezone suffixes and ignoring `utc_time`), the gateway OS timezone (`system.timezone` / `/etc/TZ`) must strictly be configured as `UTC` only for this architecture.
 
 This API shall not require the caller to first create parental-control groups, create schedules, or link schedules to groups through the existing parental-control resource APIs.
 
