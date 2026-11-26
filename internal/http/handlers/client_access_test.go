@@ -284,6 +284,72 @@ func TestValidateClientAccessRequest(t *testing.T) {
 			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
 			wantErrSub: "Invalid date format",
 		},
+		{
+			name:       "ISO-8601 fractional seconds rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00.123","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "ISO-8601 UTC Z offset rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00Z","stop_date":"2036-07-09T01:00:00Z"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "ISO-8601 numeric timezone offset rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00+05:30","stop_date":"2036-07-09T01:00:00+05:30"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "space-separated combined date-time rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08 23:00:00","stop_date":"2036-07-09 01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Missing required fields",
+		},
+		{
+			name:       "mixed ISO start_date and date-only stop_date rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "mixed ISO dates with explicit null start_time rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T23:00:00","stop_date":"2036-07-09T01:00:00","start_time":null}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Missing required fields",
+		},
+		{
+			name:       "malformed slash ISO delimiter rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036/07/08T23:00:00","stop_date":"2036-07-09T01:00:00"}`,
+			now:        time.Date(2036, 7, 8, 0, 0, 0, 0, time.UTC),
+			wantErrSub: "Invalid date format",
+		},
+		{
+			name:       "valid ISO-8601 minimum 1-second duration",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-07-08T12:00:01"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "valid ISO-8601 exact 30-day maximum duration",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:00"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "",
+		},
+		{
+			name:       "ISO-8601 duration exceeding 30 days by 1 second rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-07T12:00:01"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "must not exceed 30 days",
+		},
+		{
+			name:       "ISO-8601 duration exceeding 30 days by 1 day rejected",
+			body:       `{"client_mac":"AA:BB:CC:DD:EE:FF","start_date":"2036-07-08T12:00:00","stop_date":"2036-08-08T12:00:00"}`,
+			now:        time.Date(2036, 7, 8, 12, 0, 0, 0, time.UTC),
+			wantErrSub: "must not exceed 30 days",
+		},
 	}
 
 	for _, tt := range tests {

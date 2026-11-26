@@ -517,14 +517,13 @@ paths:
     post:
       summary: Pause client internet access
       description: >-
-        Create subscriber-scoped client access block for the target MAC address in either permanent or timed mode.
-        Permanent blocking mode requires only `client_mac` (omitting all four date/time boundary fields).
-        Timed blocking mode requires `client_mac` along with all four date/time fields (`start_date`, `stop_date`, `start_time`, `stop_time`).
-        For timed blocking, all four date/time fields must contain the UTC enforcement window prepared by Userportal / owsub. The service interprets these values as UTC and does not perform timezone resolution or conversion.
-        For timed blocks, `start_date` must be the intended block date, `stop_date` must be exactly the next calendar date,
-        and `start_time` and `stop_time` must describe the active interval on the intended block date with `stop_time` greater than `start_time`.
-        Omitting a subset of date/time fields or sending explicit null or empty values for any date/time field is invalid and returns HTTP 400 Bad Request.
-        Sending a request for a client MAC that already has an active permanent or timed client-access rule replaces the existing rule parameters in place. A permanent rule can be replaced by a timed rule, a timed rule can be replaced with new time boundaries, and a timed rule can be replaced by a permanent rule.
+        Create subscriber-scoped client access block for the target MAC address in one of three supported modes:
+        (1) **Permanent mode**: provide only `client_mac` and omit all four date/time boundary fields (`start_date`, `stop_date`, `start_time`, `stop_time`). The block remains active indefinitely until removed.
+        (2) **Two-field ISO timed mode (preferred)**: provide `client_mac`, `start_date`, and `stop_date` using the canonical 19-character timestamp format `YYYY-MM-DDTHH:MM:SS` interpreted as UTC (no `Z` suffix, no numeric timezone offset, no fractional seconds, and no space separator), and omit `start_time` and `stop_time`. Supports cross-midnight and multi-day windows up to 30 days (`43,200` minutes / `2,592,000` seconds). `stop_date` must be strictly after `start_date` (minimum 1 second), `stop_date - start_date <= 30 days`, and `stop_date` must be strictly in the future relative to current UTC time.
+        (3) **Legacy four-field timed mode**: provide `client_mac` along with all four date/time fields (`start_date` as `YYYY-MM-DD`, `stop_date` as `YYYY-MM-DD` equal to the calendar day immediately following `start_date`, `start_time` as `HH:MM:SS`, and `stop_time` as `HH:MM:SS` strictly greater than `start_time`, all interpreted as UTC). This legacy mode is implicitly bounded to `< 24` hours within `start_date` and must not already be expired.
+        Mango Parental Control does not perform timezone resolution or conversion; callers (such as Userportal / `owsub`) must convert all windows to UTC before calling this API.
+        Omitting a subset of fields, mixing ISO date-time values with date-only or time fields, sending RFC 3339 offsets/fractional seconds, sending explicit `null` or empty strings for any date/time field (including `"start_time": null` or `"stop_time": null` in ISO mode), exceeding the 30-day duration bound, or submitting an already-expired window returns HTTP 400 Bad Request.
+        Sending a request for a client MAC that already has an active permanent or timed client-access rule replaces the existing rule parameters in place (any mode can replace any other mode).
         The response always contains the `config-raw` field, which will contain the updated commands if the effective parental-control snapshot changes, or `null` for no-op changes.
       parameters:
         - $ref: '#/components/parameters/SubscriberIdPath'
@@ -534,6 +533,25 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ClientAccessCreateRequest'
+            examples:
+              permanent:
+                summary: Permanent block (no expiry)
+                value:
+                  client_mac: "AA:BB:CC:DD:EE:FF"
+              isoTimedCrossMidnight:
+                summary: Two-field ISO timed block crossing midnight (UTC)
+                value:
+                  client_mac: "AA:BB:CC:DD:EE:FF"
+                  start_date: "2026-11-25T23:00:00"
+                  stop_date: "2026-11-26T01:00:00"
+              legacyFourFieldTimed:
+                summary: Legacy four-field single-day timed block (UTC)
+                value:
+                  client_mac: "AA:BB:CC:DD:EE:FF"
+                  start_date: "2026-11-25"
+                  stop_date: "2026-11-26"
+                  start_time: "07:30:00"
+                  stop_time: "08:00:00"
       responses:
         '200':
           description: Client pause-state created
@@ -541,6 +559,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ClientAccessWriteResponse'
+              examples:
+                permanent:
+                  summary: Permanent block response
+                  value:
+                    subscriber_id: "11111111-1111-4111-8111-111111111111"
+                    client_mac: "AA:BB:CC:DD:EE:FF"
+                    created_at: "2026-11-25T22:55:00Z"
+                    updated_at: "2026-11-25T22:55:00Z"
+                    config-raw:
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF", "rule"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.name", "PC_ClientAccess_AA_BB_CC_DD_EE_FF"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.enabled", "1"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src", "down1v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.dest", "up0v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.family", "any"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.proto", "all"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.target", "REJECT"]
+                      - ["add_list", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src_mac", "AA:BB:CC:DD:EE:FF"]
+                isoTimedCrossMidnight:
+                  summary: Two-field ISO timed block response (single-rule config-raw)
+                  value:
+                    subscriber_id: "11111111-1111-4111-8111-111111111111"
+                    client_mac: "AA:BB:CC:DD:EE:FF"
+                    start_date: "2026-11-25T23:00:00"
+                    stop_date: "2026-11-26T01:00:00"
+                    created_at: "2026-11-25T23:00:00Z"
+                    updated_at: "2026-11-25T23:00:00Z"
+                    config-raw:
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF", "rule"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.name", "PC_ClientAccess_AA_BB_CC_DD_EE_FF"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.enabled", "1"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src", "down1v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.dest", "up0v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.family", "any"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.proto", "all"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.target", "REJECT"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.start_date", "2026-11-25T23:00:00"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.stop_date", "2026-11-26T01:00:00"]
+                      - ["add_list", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src_mac", "AA:BB:CC:DD:EE:FF"]
+                legacyFourFieldTimed:
+                  summary: Legacy four-field timed block response
+                  value:
+                    subscriber_id: "11111111-1111-4111-8111-111111111111"
+                    client_mac: "AA:BB:CC:DD:EE:FF"
+                    start_date: "2026-11-25"
+                    stop_date: "2026-11-26"
+                    start_time: "07:30:00"
+                    stop_time: "08:00:00"
+                    created_at: "2026-11-25T07:00:00Z"
+                    updated_at: "2026-11-25T07:00:00Z"
+                    config-raw:
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF", "rule"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.name", "PC_ClientAccess_AA_BB_CC_DD_EE_FF"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.enabled", "1"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src", "down1v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.dest", "up0v0"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.family", "any"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.proto", "all"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.target", "REJECT"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.start_date", "2026-11-25"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.stop_date", "2026-11-26"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.start_time", "07:30:00"]
+                      - ["set", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.stop_time", "08:00:00"]
+                      - ["add_list", "firewall.pc_client_access_AA_BB_CC_DD_EE_FF.src_mac", "AA:BB:CC:DD:EE:FF"]
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/StorageFailure' }
@@ -1087,21 +1169,39 @@ components:
           type: string
           pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
         start_date:
-          type: string
-          format: date
-          description: UTC enforcement start date for a timed client-access rule. Omitted for permanent rules.
+          description: >-
+            UTC enforcement start boundary for timed client-access rules. Omitted for permanent rules.
+            Returns canonical `YYYY-MM-DDTHH:MM:SS` (UTC, no timezone suffix) for two-field ISO timed rules,
+            or `YYYY-MM-DD` (UTC) for legacy four-field timed rules.
+          oneOf:
+            - type: string
+              pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+              example: "2026-11-25T23:00:00"
+            - type: string
+              format: date
+              pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+              example: "2026-11-25"
         stop_date:
-          type: string
-          format: date
-          description: UTC enforcement stop date for a timed client-access rule. Omitted for permanent rules.
+          description: >-
+            UTC enforcement stop boundary for timed client-access rules. Omitted for permanent rules.
+            Returns canonical `YYYY-MM-DDTHH:MM:SS` (UTC, no timezone suffix) for two-field ISO timed rules,
+            or `YYYY-MM-DD` (UTC) for legacy four-field timed rules.
+          oneOf:
+            - type: string
+              pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+              example: "2026-11-26T01:00:00"
+            - type: string
+              format: date
+              pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+              example: "2026-11-26"
         start_time:
           type: string
           pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
-          description: UTC enforcement start time for a timed client-access rule. Omitted for permanent rules.
+          description: UTC enforcement start time for legacy four-field timed client-access rules. Omitted for permanent rules and two-field ISO timed rules.
         stop_time:
           type: string
           pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
-          description: UTC enforcement stop time for a timed client-access rule. Omitted for permanent rules.
+          description: UTC enforcement stop time for legacy four-field timed client-access rules. Omitted for permanent rules and two-field ISO timed rules.
         created_at:
           type: string
           format: date-time
@@ -1111,13 +1211,19 @@ components:
 
     ClientAccessCreateRequest:
       description: >-
-        Create request for client-access blocking. Supports two valid shapes: permanent block (only `client_mac` provided) or timed block (`client_mac` with all four date/time fields). Date/time boundary fields must be all absent (permanent block) or all present (timed block). Partial boundary fields, null values, or empty strings return HTTP 400 Bad Request.
+        Create request for client-access blocking. Supports three valid shapes:
+        (1) permanent block (only `client_mac` provided; all four date/time fields omitted),
+        (2) two-field ISO timed block (`client_mac`, `start_date`, and `stop_date` in canonical `YYYY-MM-DDTHH:MM:SS` UTC format; `start_time` and `stop_time` omitted; duration > 0 seconds and <= 30 days / 43,200 minutes), or
+        (3) legacy four-field timed block (`client_mac` with `start_date` and `stop_date` as `YYYY-MM-DD`, plus `start_time` and `stop_time` as `HH:MM:SS`).
+        Partial boundary fields, mixed ISO/date-only or ISO/time fields, RFC 3339 offsets or fractional seconds, explicit `null` values (including `"start_time": null` or `"stop_time": null` in ISO mode), empty strings, durations exceeding 30 days, or already-expired windows return HTTP 400 Bad Request.
       oneOf:
         - $ref: '#/components/schemas/ClientAccessPermanentCreateRequest'
+        - $ref: '#/components/schemas/ClientAccessIsoTimedCreateRequest'
         - $ref: '#/components/schemas/ClientAccessTimedCreateRequest'
 
     ClientAccessPermanentCreateRequest:
       type: object
+      description: Permanent client-access block (indefinite until deleted or replaced). Omit all date/time boundary fields.
       additionalProperties: false
       required: [client_mac]
       properties:
@@ -1125,16 +1231,42 @@ components:
           type: string
           pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
 
+    ClientAccessIsoTimedCreateRequest:
+      type: object
+      description: >-
+        Two-field ISO timed client-access request using caller-prepared UTC timestamps.
+        Userportal / `owsub` must resolve subscriber or venue timezone context and convert the enforcement window to UTC before calling this API.
+        Both `start_date` and `stop_date` must use canonical 19-character `YYYY-MM-DDTHH:MM:SS` interpreted as UTC (no `Z`, no numeric timezone offset, no fractional seconds, no space separator).
+        `start_time` and `stop_time` must be omitted (sending them as `null` or `""` is rejected with HTTP 400).
+        `stop_date` must be strictly after `start_date` (minimum 1 second), `stop_date - start_date` must not exceed 30 days (`43,200` minutes / `2,592,000` seconds), and `stop_date` must be strictly in the future relative to current UTC time. Supports cross-midnight and multi-day windows up to 30 days.
+      additionalProperties: false
+      required: [client_mac, start_date, stop_date]
+      properties:
+        client_mac:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        start_date:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Canonical UTC block start timestamp (`YYYY-MM-DDTHH:MM:SS`, no timezone suffix or fractional seconds).
+          example: "2026-11-25T23:00:00"
+        stop_date:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Canonical UTC block stop timestamp (`YYYY-MM-DDTHH:MM:SS`, no timezone suffix or fractional seconds). Must be strictly after `start_date`, at most 30 days (`43,200` minutes) after `start_date`, and strictly after current UTC time.
+          example: "2026-11-26T01:00:00"
+
     ClientAccessTimedCreateRequest:
       type: object
       description: >-
-        Timed client-access request using a caller-prepared UTC enforcement window.
+        Legacy four-field single-day timed client-access request using a caller-prepared UTC enforcement window.
         Userportal / owsub is responsible for resolving any subscriber or venue
         timezone context and converting the enforcement window to UTC before calling
         this API. Mango Parental Control does not perform timezone resolution or
         conversion. All four date/time boundary fields are interpreted as UTC and
         are compared with the current UTC time for validation, expiration cleanup,
-        effective-policy evaluation, and config-raw rendering.
+        effective-policy evaluation, and config-raw rendering. Implicitly bounded to < 24 hours within `start_date`.
+        Explicit `null` or empty string values are rejected with HTTP 400.
       additionalProperties: false
       required: [client_mac, start_date, stop_date, start_time, stop_time]
       properties:
@@ -1144,19 +1276,21 @@ components:
         start_date:
           type: string
           format: date
-          description: UTC intended block date for the supported single-day timed block.
+          pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+          description: UTC intended block date (`YYYY-MM-DD`) for the legacy single-day timed block.
         stop_date:
           type: string
           format: date
-          description: UTC calendar date immediately following start_date, required by the supported timed-block request shape.
+          pattern: '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+          description: UTC calendar date (`YYYY-MM-DD`) immediately following `start_date`, required by the legacy four-field timed-block request shape.
         start_time:
           type: string
           pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
-          description: UTC block start time on start_date.
+          description: UTC block start time (`HH:MM:SS`) on `start_date`.
         stop_time:
           type: string
           pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
-          description: UTC block stop time on start_date. Must be strictly greater than start_time.
+          description: UTC block stop time (`HH:MM:SS`) on `start_date`. Must be strictly greater than `start_time`.
     ClientAccessWriteResponse:
       description: Client-access write response. Always includes `config-raw` through `ConfigRawResponse` (which is `null` for no-op changes, `[]` when policy is cleared, or the populated array of commands).
       allOf:

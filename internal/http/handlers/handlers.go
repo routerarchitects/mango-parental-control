@@ -25,6 +25,17 @@ import (
 
 var macRegex = regexp.MustCompile(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`)
 var timeRegex = regexp.MustCompile(`^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$`)
+var dateRegex = regexp.MustCompile(`^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$`)
+var isoDateTimeRegex = regexp.MustCompile(`^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$`)
+
+const maxClientAccessDuration = 30 * 24 * time.Hour
+
+func parseCanonicalISOUTC(s string) (time.Time, error) {
+	if !isoDateTimeRegex.MatchString(s) {
+		return time.Time{}, fmt.Errorf("Invalid date format")
+	}
+	return time.Parse("2006-01-02T15:04:05", s)
+}
 
 func validateUUID(s string) bool {
 	_, err := uuid.Parse(s)
@@ -45,7 +56,7 @@ func isClientAccessExpired(now time.Time, startDateStr, stopTimeStr string) bool
 		if !strings.Contains(target, "T") {
 			target = startDateStr
 		}
-		if t, err := time.Parse("2006-01-02T15:04:05", target); err == nil {
+		if t, err := parseCanonicalISOUTC(target); err == nil {
 			return !now.Before(t)
 		}
 	}
@@ -474,7 +485,7 @@ func renderConfigRaw(ctx context.Context, dbConn *db.Database, subscriberID stri
 			if ca.ExpiresAt != nil {
 				isExpired = !nowTime.Before(*ca.ExpiresAt)
 			} else if strings.Contains(*ca.StopDate, "T") {
-				if t, err := time.Parse("2006-01-02T15:04:05", *ca.StopDate); err == nil {
+				if t, err := parseCanonicalISOUTC(*ca.StopDate); err == nil {
 					isExpired = !nowTime.Before(t)
 				}
 			} else if ca.StopTime != nil {
@@ -2092,8 +2103,8 @@ func validateAndComputeTimestamps(body []byte, req models.ClientAccessCreateRequ
 		return nil, nil, nil
 	}
 
-	// Support ISO-8601 mode: start_date and stop_date with "T" (start_time/stop_time omitted or null)
-	if hasStartDateKey && hasStopDateKey && (!hasStartTimeKey || req.StartTime == nil) && (!hasStopTimeKey || req.StopTime == nil) {
+	// Support strict canonical ISO-8601 mode: YYYY-MM-DDTHH:MM:SS (UTC, no suffix/fractional seconds) with start_time/stop_time omitted
+	if hasStartDateKey && hasStopDateKey && !hasStartTimeKey && !hasStopTimeKey {
 		if req.StartDate == nil || req.StopDate == nil {
 			return nil, nil, fmt.Errorf("Missing required fields")
 		}
@@ -2104,14 +2115,18 @@ func validateAndComputeTimestamps(body []byte, req models.ClientAccessCreateRequ
 		}
 
 		if strings.Contains(startDate, "T") || strings.Contains(stopDate, "T") {
-			tStart, err1 := time.Parse("2006-01-02T15:04:05", startDate)
-			tStop, err2 := time.Parse("2006-01-02T15:04:05", stopDate)
+			tStart, err1 := parseCanonicalISOUTC(startDate)
+			tStop, err2 := parseCanonicalISOUTC(stopDate)
 			if err1 != nil || err2 != nil {
 				return nil, nil, fmt.Errorf("Invalid date format")
 			}
 
 			if !tStop.After(tStart) {
 				return nil, nil, fmt.Errorf("stop_date must be strictly after start_date")
+			}
+
+			if tStop.Sub(tStart) > maxClientAccessDuration {
+				return nil, nil, fmt.Errorf("Client-access duration must not exceed 30 days (43200 minutes)")
 			}
 
 			if !now.Before(tStop) {
@@ -2139,6 +2154,9 @@ func validateAndComputeTimestamps(body []byte, req models.ClientAccessCreateRequ
 		return nil, nil, fmt.Errorf("Missing required fields")
 	}
 
+	if !dateRegex.MatchString(startDate) || !dateRegex.MatchString(stopDate) {
+		return nil, nil, fmt.Errorf("Invalid date format")
+	}
 	tStartDate, err1 := time.Parse("2006-01-02", startDate)
 	tStopDate, err2 := time.Parse("2006-01-02", stopDate)
 	if err1 != nil || err2 != nil {
